@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Taxi drivers</title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+  </head>
+  <body>
+    <h1>Taxi drivers</h1>
+    <% for( let i = 0; i < users.length; i++ ) { %>
+        <a href=/users/<%= users[i].id %> >  <h2><%= users[i].id %> : <%= users[i].name %></h2> </a>
+    <% } %>
+  </body>
+</html>
