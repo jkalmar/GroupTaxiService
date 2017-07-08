@@ -51,6 +51,13 @@ router.get('/order/:driverId', ( req, res, next ) => {
 });
 
 /**
+ * Get all orders from system that belongs to a user
+ */
+router.get('/order', ( req, res, next ) => {
+
+});
+
+/**
  * Take specific order
  * This will send confirmating respons to driver in case there are more
  * drivers taking this order simultanuosly
