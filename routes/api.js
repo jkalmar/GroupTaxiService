@@ -3,9 +3,12 @@ var router = express.Router();
 
 const taxi_drivers = require('../models/driver');
 
+const trouble = require('../models/trouble');
+
+
 router.get('/', function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
-        res.render('taxis', { users : value });
+        res.json({ users : value });
     } );
 });
 
@@ -25,14 +28,18 @@ router.post('/driver/:id', ( req, res, next ) => {
  * Send message to user
  */
 router.post('/communication', ( req, res, next ) => {
+    console.log( req.body )
 
+
+    res.sendStatus( 200 );
 } );
 
 /**
  * Get all pending messages from chat
  */
 router.get('/comunication', ( req, res, next ) => {
-
+    console.log( req.body )
+    res.send( "comunication" );
 });
 
 /**
@@ -54,7 +61,7 @@ router.get('/order/:driverId', ( req, res, next ) => {
  * Get all orders from system that belongs to a user
  */
 router.get('/order', ( req, res, next ) => {
-
+    res.send( "Orders" );
 });
 
 /**
@@ -99,7 +106,7 @@ router.post('/blacklist', ( req, res, next ) => {
  * Send all blacklisted users to driver
  */
 router.get('/blacklist', ( req, res, next ) => {
-
+    res.send( "blacklist" );
 });
 
 
@@ -111,6 +118,22 @@ router.get('/blacklist', ( req, res, next ) => {
 router.delete('/blacklist', ( req, res, next ) => {
 
 });
+
+/**
+ * Get all taxis that are in trouble
+ */
+router.get( '/trouble', (req, res, next ) => {
+    trouble.getAll( req, res, next );
+} )
+
+/**
+ * Post that handle a trouble
+ * Tapping panic button will send post here to indicate that a driver has
+ * a problem
+ */
+router.post( '/trouble', ( req, res, next ) => {
+    trouble.addNew(req, res, next);
+} )
 
 
 /*

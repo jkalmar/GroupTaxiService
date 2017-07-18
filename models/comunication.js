@@ -1,1 +1,1 @@
-require('./database')
+const db = require('./database')
