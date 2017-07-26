@@ -135,6 +135,15 @@ router.post( '/trouble', ( req, res, next ) => {
     trouble.addNew(req, res, next);
 } )
 
+/**
+ * Delete that handle a trouble
+ * Tapping panic button will send post here to indicate that a driver has
+ * a problem, but after the driver is safe he will send a delete several time
+ * to indicate that he is ok
+ */
+router.delete( '/trouble', ( req, res, next ) => {
+    trouble.deleteDriver(req, res, next);
+} )
 
 /*
 router.get('/users/:id', function(req, res, next) {

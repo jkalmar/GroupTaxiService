@@ -13,9 +13,14 @@ drivers.insert( { id : "v", lang : "hj", long : "1hhh0" } );
 drivers.insert( { id : "h", lang : "kk", long : "1jjj0" } );
 
 
+/**
+ * Strip lokijs specific meta data
+ * 
+ * @param {*} results  Data from lokijs db query
+ */
 function stripResultsMetadata( results ) {
 	const records = []
-	for (var idx = 0; idx < results.length; idx++) {
+	for (let idx = 0; idx < results.length; idx++) {
 		const loki_rec = results[ idx ]
 		const clean_rec = Object.assign({}, loki_rec)
 		delete clean_rec['meta']
@@ -32,10 +37,11 @@ function stripResultsMetadata( results ) {
  * so they can help that driver
  */
 const getAll = ( req, res, next ) => {
-    console.log( stripResultsMetadata( drivers.find() ) );
+    const result = stripResultsMetadata( drivers.find() );
 
-    res.sendStatus( 200 );
+    res.json(result);
 }
+
 
 /**
  * Add new driver to drivers in trouble db
@@ -46,7 +52,7 @@ const getAll = ( req, res, next ) => {
 const addNew = ( req, res, next ) => {
     aDriver = drivers.findOne( { 'id' : req.body.id } );
 
-    if( result == null ) {
+    if( aDriver == null ) {
         drivers.insert( req.body );
     }
     else{
@@ -60,9 +66,19 @@ const addNew = ( req, res, next ) => {
 }
 
 
+/**
+ * Delete driver from trouble db
+ * If client send DELETE with his id then he is deleted from trouble DB and
+ * everybody will not need to help him anymore
+ */
+const deleteDriver = ( req, res, next ) => {
+    drivers.findAndRemove( { 'id' : req.body.id } );
 
+    res.sendStatus(200);
+}
 
 module.exports = {
     getAll,
-    addNew
+    addNew,
+    deleteDriver
 }
