@@ -1,15 +1,24 @@
 var express = require('express');
 var router = express.Router();
+const debug = require('debug')('backend:api');
+
 
 const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
 
+
 router.get('/', function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
         res.json({ users : value });
-    } );
+    } ).catch( value => {
+        res.sendStatus( 200 );
+
+        debug("----------------------------------------------------------");
+        debug(value);
+        debug("----------------------------------------------------------");
+    } )
 });
 
 router.get('/users', function(req, res, next) {
@@ -21,7 +30,7 @@ router.get('/users', function(req, res, next) {
  * Location is in lang, long GPS coordinates
  */
 router.post('/driver/:id', ( req, res, next ) => {
-
+    res.sendStatus( 200 );
 } );
 
 /**
@@ -178,8 +187,25 @@ router.post( '/api/gps/:id', function( req, res )
     driver.history.push( req.body.location );
 
     res.sendStatus( 200 );
-} )
+} );
 */
+
+/*
+ *  Perform login with name and password in json
+ *  and return id and uuid for the login session
+ */
+router.post( '/login', ( req, res, next ) => {
+    taxi_drivers.login( req.body.name, req.body.password, req, res );
+} );
+
+/*
+ *  Perform logout of the session ID
+ */
+router.post( '/logout', ( req, res, next ) => {
+    console.log( req.body );
+
+    taxi_drivers.logout( req.body.sessionId, req, res );
+} );
 
 
 module.exports = ( app ) => {
