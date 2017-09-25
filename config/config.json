@@ -1,0 +1,9 @@
+{
+    "development": {
+        "username": "USER",
+        "password": "PASS",
+        "database": "session_test",
+        "host": "localhost",
+        "port" : "3306"
+    }
+}

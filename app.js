@@ -2,14 +2,30 @@ var express = require('express');
 var path = require('path');
 var favicon = require('serve-favicon');
 var logger = require('morgan');
-var cookieParser = require('cookie-parser');
+var passport   = require('passport')
+var session    = require('express-session')
+var MySQLStore = require('express-mysql-session')(session);
 var bodyParser = require('body-parser');
 
-//const db = require('./models/database');
+var options = {
+  host: 'localhost',
+  port: 3306,
+  user: 'USER',
+  password: 'PASS',
+  database: 'session_test'
+};
+
+var sessionStore = new MySQLStore(options);
+
+const db = require('./models/database');
 
 const api_routes = require( './routes/api' )
 
 var app = express();
+
+// require the config json from filesystem
+// save all configurable parameters to that file
+var config = require(path.join(__dirname, 'config', 'config.json'));
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -17,12 +33,40 @@ app.set('view engine', 'ejs');
 
 app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
+
+// set parsing of urlencoded and json encoded body parameters
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-//app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+
+// add session middleware
+// this will add sessionId to every response and retieve it from every request
+// the session is stored into cookie and TODO: mariadb
+app.use(session({
+  secret: 'keyboard cat',
+  resave: true,
+  store: sessionStore,
+  saveUninitialized:true
+}));
+
+// add passport middleware
+// responsible of handling the user authorization to the system
+// the passport is configured in ./config/passport.js module
+app.use(passport.initialize());
+app.use(passport.session()); // persistent login sessions
 
 api_routes( app );
+
+const auth = require('./controllers/auth');
+auth.setUp( app, passport );
+
+
+
+// handling of static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// set up routes for the app
+
+
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

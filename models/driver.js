@@ -16,13 +16,59 @@ const getTaxis = function()
     } );
 }
 
-const getTaxi = (id) => {
+const getTaxiByName = (name) => {
     return new Promise( (resolve, reject) => {
-        db.query('select * from taxi_drivers where id = ? limit 1000', [id], ( err, result, fields ) => {
+        db.query('select * from taxi_drivers where username = ? limit 1000', [name], ( err, result, fields ) => {
             if( err )
             {
                 reject( err );
             }
+            resolve( result );
+        } );
+    } );
+};
+
+const getTaxiByNamePassword = ( name, password ) => {
+    return new Promise( (resolve, reject ) => {
+        const sql = "select * from taxi_drivers where username = ? and password = ? limit 1";
+
+        db.query( sql, [ name, password ], ( err, result, fields ) => {
+            if( err ) reject( err );
+
+            resolve( result );
+        } );
+    } );
+};
+
+const getTaxiById = ( id ) => {
+    return new Promise( ( resolve, reject ) => {
+        const sql = "select * from taxi_drivers where id = ? limit 1";
+
+        db.query( sql, [ id ], ( err, result, fields ) => {
+            if( err ) reject( err );
+
+            resolve( result );
+        } );
+    } );
+};
+
+const insertTaxi = ( name, password ) => {
+    return new Promise( ( resolve, reject ) => {
+        const sql = "insert into taxi_drivers (username, password) values (?, ?)";
+
+        db.query( sql, [name, password], (err, result, fields) => {
+            if( err ) { reject( err ) }
+
+            resolve( result );
+        } );
+        
+    } );
+}
+
+const getTaxi = (id) => {
+    return new Promise( (resolve, reject) => {
+        db.query('select * from taxi_drivers where id = ? limit 1000', [id], ( err, result, fields ) => {
+            if( err ) reject( err );
 
             resolve( result );
         } );
@@ -32,10 +78,7 @@ const getTaxi = (id) => {
 const updateLocation = (lang, long, id) => {
     return new Promise( (resolve, reject) => {
         db.query('update taxi_drivers set langtitude = ?, longtitude = ? where id = ? limit 1', [lang, long, id], ( err, result, fields ) => {
-            if( err )
-            {
-                reject( err );
-            }
+            if( err ) reject( err );
 
             resolve( result );
         } );
@@ -74,8 +117,12 @@ const logout = ( sessionId, req, res ) => {
 
 module.exports = {
     getTaxi,
+    getTaxiByName,
+    getTaxiByNamePassword,
+    getTaxiById,
     getTaxis,
     updateLocation,
     login,
-    logout
+    logout,
+    insertTaxi
 }

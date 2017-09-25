@@ -1,13 +1,11 @@
 var express = require('express');
 var router = express.Router();
 const debug = require('debug')('backend:api');
-
+var passport   = require('passport');
 
 const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
-
-
 
 router.get('/', function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
@@ -79,15 +77,6 @@ router.get('/order', ( req, res, next ) => {
  * drivers taking this order simultanuosly
  */
 router.post('/take/:id', ( req, res, next ) => {
-
-});
-
-
-/**
- * Register user to database
- * Creates new user in db and afterward allow this user to rate and make orders for others
- */
-router.post('/register', ( req, res, next ) => {
 
 });
 
@@ -194,18 +183,18 @@ router.post( '/api/gps/:id', function( req, res )
  *  Perform login with name and password in json
  *  and return id and uuid for the login session
  */
-router.post( '/login', ( req, res, next ) => {
-    taxi_drivers.login( req.body.name, req.body.password, req, res );
-} );
+//router.post( '/login', ( req, res, next ) => {
+//    taxi_drivers.login( req.body.name, req.body.password, req, res );
+//} );
 
 /*
  *  Perform logout of the session ID
  */
-router.post( '/logout', ( req, res, next ) => {
-    console.log( req.body );
-
-    taxi_drivers.logout( req.body.sessionId, req, res );
-} );
+//router.post( '/logout', ( req, res, next ) => {
+//    console.log( req.body );
+//
+//    taxi_drivers.logout( req.body.sessionId, req, res );
+//} );
 
 
 module.exports = ( app ) => {
