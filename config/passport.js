@@ -19,7 +19,7 @@ const initialize = (passport) =>
                 // just call the done method and pass false to it
                 if( result.length > 0 )
                 {
-                    done( null, false, { message: 'Username already exist' } );
+                    return done( null, null, { message: 'Username already exist' } );
                 }
 
                 // driver does not exist, so register him
@@ -28,13 +28,13 @@ const initialize = (passport) =>
 
                     // call the done with my last ID that we will serialize into the session
                     // this ID will be used in future requests to load/update driver in DB
-                    done( null, result.insertId );
+                    return done( null, result.insertId, { message : "User succesfully added to DB" } );
                     
                 } ).catch( ( value ) => {
-                    done( value, false );
+                    done( value, null, { message : "Error happened" } );
                 } );
             } ).catch( (value) => {
-                done(value, false);
+                done(value, null, { message : "Error happened" } );
             } )
         } )
     );
@@ -55,16 +55,14 @@ passport.use('local-signin', new LocalStrategy(
         driver.getTaxiByNamePassword( username, password ).then( ( result ) => {
             if( result.length == 1 )
             {
-                debug( "User succesfully loged in" );
-                done( null, result[0].id );
+                done( null, result[0].id, { message : "User succesfully loged in" } );
             }
             else
             {
-                debug( "Wrong username or password" );
-                done( null, false, { message : "Wrong username or password" } );
+                done( null, null, { message : "Wrong username or password" } );
             }
         } ).catch( ( value ) =>{
-            done( value, false );
+            done( value, null, { message : "Error happened" } );
         } );
     }
 
@@ -72,13 +70,12 @@ passport.use('local-signin', new LocalStrategy(
 
 
     passport.serializeUser(function(user, done) {
-        console.log("serialize");
+        debug("serialize: ", user);
         done(null, user);
     });
 
     passport.deserializeUser(function(id, done) {
-        console.log("deserialize");
-        console.log(id);
+        debug("deserialize: ", id);
         done(null, id);
     });
 

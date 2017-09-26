@@ -23,6 +23,10 @@ const api_routes = require( './routes/api' )
 
 var app = express();
 
+// disable etag generating for every route
+// it should not be used for API that change with every request either way
+app.set( 'etag', false );
+
 // require the config json from filesystem
 // save all configurable parameters to that file
 var config = require(path.join(__dirname, 'config', 'config.json'));
@@ -42,7 +46,7 @@ app.use(bodyParser.json());
 // this will add sessionId to every response and retieve it from every request
 // the session is stored into cookie and TODO: mariadb
 app.use(session({
-  secret: 'keyboard cat',
+  secret: 'taxiapp',
   resave: true,
   store: sessionStore,
   saveUninitialized:true
@@ -57,7 +61,7 @@ app.use(passport.session()); // persistent login sessions
 api_routes( app );
 
 const auth = require('./controllers/auth');
-auth.setUp( app, passport );
+auth.setUp( app );
 
 
 

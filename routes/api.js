@@ -2,12 +2,13 @@ var express = require('express');
 var router = express.Router();
 const debug = require('debug')('backend:api');
 var passport   = require('passport');
+const auth = require('../controllers/auth');
 
 const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
-router.get('/', function(req, res, next) {
+router.get('/', auth.isLoggedIn, function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
         res.json({ users : value });
     } ).catch( value => {
