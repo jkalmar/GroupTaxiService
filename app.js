@@ -7,15 +7,10 @@ var session    = require('express-session')
 var MySQLStore = require('express-mysql-session')(session);
 var bodyParser = require('body-parser');
 
-var options = {
-  host: 'localhost',
-  port: 3306,
-  user: 'USER',
-  password: 'PASS',
-  database: 'session_test'
-};
-
-var sessionStore = new MySQLStore(options);
+// load options from config file and use it as connection settings for
+// session db
+const options = require('./config/config.json').development;
+const sessionStore = new MySQLStore(options);
 
 const db = require('./models/database');
 

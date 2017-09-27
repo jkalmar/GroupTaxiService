@@ -20,7 +20,7 @@ router.get('/', auth.isLoggedIn, function(req, res, next) {
     } )
 });
 
-router.get('/users', function(req, res, next) {
+router.get('/users', auth.isLoggedIn, function(req, res, next) {
     res.render('taxis', { users : data })
 });
 
@@ -28,7 +28,7 @@ router.get('/users', function(req, res, next) {
  * Updates driver location
  * Location is in lang, long GPS coordinates
  */
-router.post('/driver/:id', ( req, res, next ) => {
+router.post('/driver/:id', auth.isLoggedIn, function( req, res, next ) {
     res.sendStatus( 200 );
 } );
 
@@ -96,7 +96,7 @@ router.post('/rate/:driverId', ( req, res, next ) => {
  * registered id, but rather phone id or name or phone number so the user can be detected
  * even from different location/registration
  */
-router.post('/blacklist', ( req, res, next ) => {
+router.post('/blacklist', auth.isLoggedIn, function( req, res, next ){
 
 });
 
@@ -114,14 +114,14 @@ router.get('/blacklist', ( req, res, next ) => {
  * User can now make orders, json send to server is generater from GET /blacklist and from those
  * information about user so he/she can be removed from DB
  */
-router.delete('/blacklist', ( req, res, next ) => {
+router.delete('/blacklist',auth.isLoggedIn, function( req, res, next ) {
 
 });
 
 /**
  * Get all taxis that are in trouble
  */
-router.get( '/trouble', (req, res, next ) => {
+router.get( '/trouble', auth.isLoggedIn, function(req, res, next ) {
     trouble.getAll( req, res, next );
 } )
 
@@ -130,7 +130,7 @@ router.get( '/trouble', (req, res, next ) => {
  * Tapping panic button will send post here to indicate that a driver has
  * a problem
  */
-router.post( '/trouble', ( req, res, next ) => {
+router.post( '/trouble', auth.isLoggedIn, function( req, res, next ) {
     trouble.addNew(req, res, next);
 } )
 
@@ -140,7 +140,7 @@ router.post( '/trouble', ( req, res, next ) => {
  * a problem, but after the driver is safe he will send a delete several time
  * to indicate that he is ok
  */
-router.delete( '/trouble', ( req, res, next ) => {
+router.delete( '/trouble', auth.isLoggedIn, function( req, res, next ) {
     trouble.deleteDriver(req, res, next);
 } )
 
