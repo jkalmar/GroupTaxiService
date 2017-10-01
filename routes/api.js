@@ -8,15 +8,20 @@ const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
-router.get('/', auth.isLoggedIn, function(req, res, next) {
+router.get('/', function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
         res.json({ users : value });
     } ).catch( value => {
         res.sendStatus( 200 );
 
-        debug("----------------------------------------------------------");
-        debug(value);
-        debug("----------------------------------------------------------");
+    } )
+});
+
+router.get('/drivers', auth.isLoggedIn, function(req, res, next) {
+    taxi_drivers.getTaxis().then( value => {
+        res.json({ users : value });
+    } ).catch( value => {
+        res.sendStatus( 200 );
     } )
 });
 
@@ -28,7 +33,11 @@ router.get('/users', auth.isLoggedIn, function(req, res, next) {
  * Updates driver location
  * Location is in lang, long GPS coordinates
  */
-router.post('/driver/:id', auth.isLoggedIn, function( req, res, next ) {
+router.post('/driver', auth.isLoggedIn, function( req, res, next ) {
+    console.log( req.user );
+    console.log( req.body );
+    taxi_drivers.updateLocation( req.body.lat, req.body.long, req.user );
+
     res.sendStatus( 200 );
 } );
 

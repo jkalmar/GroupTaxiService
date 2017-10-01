@@ -49,7 +49,7 @@ function authHandler( req, res, next )
         if (!user) { return res.sendStatus( 401 ) }
         
         req.logIn( user, function(err) {
-            res.sendStatus( 200 );
+            res.json( { "id" : user } );
         } )        
     })(req, res, next); 
 }
@@ -69,7 +69,7 @@ function registerHandler( req, res, next )
         if (!user) { return res.sendStatus( 302 ) }
         
         req.logIn( user, function(err) {
-            res.sendStatus( 200 );
+            res.json( { "id" : user } );
         } )        
     })(req, res, next); 
 }
