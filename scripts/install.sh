@@ -78,6 +78,8 @@ echo "${RED}If run as normal user a password for root is required${RESET}"
 	sudo install -m 755 "$TMPDIR/$SERVICEFILE" $SYSTEMDPATH
 )
 
+cat $TMPDIR/$SERVICEFILE
+
 echo "${GREEN}DONE${RESET}"
 
 
