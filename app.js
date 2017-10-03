@@ -44,7 +44,10 @@ app.use(session({
   secret: 'taxiapp',
   resave: true,
   store: sessionStore,
-  saveUninitialized:true
+  saveUninitialized:true,
+  cookie : {
+    maxAge : 86400000
+  }
 }));
 
 // add passport middleware
