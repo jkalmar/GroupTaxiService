@@ -1,6 +1,7 @@
 const debug = require('debug')('backend:auth');
 const passportConfig = require('../config/passport');
 const passport = require('passport');
+const driver = require( '../models/driver' );
 
 const register = (req, res, next) =>
 {
@@ -31,7 +32,10 @@ const isLoggedIn = ( req, res, next ) =>
         return next();
     }
 
-    res.sendStatus(401);
+    req.session.destroy( ( err ) => {
+        res.sendStatus(401);
+    } )
+    
 }
 
 function authHandler( req, res, next )
@@ -49,7 +53,19 @@ function authHandler( req, res, next )
         if (!user) { return res.sendStatus( 401 ) }
         
         req.logIn( user, function(err) {
-            res.json( { "id" : user } );
+            if( err )
+            {
+                res.sendStatus( 500 )
+                return
+            }
+
+            driver.login( user ).then( ( value ) => {
+                res.json( { "id" : user } );
+            } ).catch( ( errr ) => {
+                res.json( { "id" : user } );
+            } )
+
+            
         } )        
     })(req, res, next); 
 }
@@ -76,10 +92,15 @@ function registerHandler( req, res, next )
 
 function logout( req, res, next )
 {
-    req.logout();
-    req.session.destroy( function(err) {
-        res.redirect('/');
-    } );
+    driver.logout( req.user ).then( ( data ) => {
+        req.logout()
+        req.session.destroy( function(err) {
+            res.sendStatus( 200 );
+        } );
+    } ).catch( ( err ) => {
+        console.log( err );
+        res.sendStatus( 500 );
+    } )
 }
 
 /**

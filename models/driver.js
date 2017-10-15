@@ -5,7 +5,7 @@ const db = require('./database');
 const getTaxis = function()
 {
     return new Promise( (resolve, reject) => {
-        db.query( 'select * from taxi_drivers', ( err, result, fields ) => {
+        db.query( 'select * from taxi_drivers where logged = true', ( err, result, fields ) => {
             if( err )
             {
                 reject( err );
@@ -102,17 +102,28 @@ const performLogout = ( sessionId ) => {
     
 }
 
-const login = ( name, password, req, res ) => {
-    performLogin( name, password ).then( ( value ) => {
-        res.json( { "sessionId" : uuidv4() } );
-    } ).catch( (value) => {
-        res.json( { "sessionId" : uuidv4() } );
-    } )
+function login( id ){
+    const sql = "update taxi_drivers set `logged` = true where `id` = ? limit 1";
+    
+    return new Promise( (resolve, reject) => {
+        db.query( sql, [id], ( err, result, fields ) => {
+            if( err ) reject( err );
+    
+            resolve( result );
+        } );
+    } );
 } 
 
-const logout = ( sessionId, req, res ) => {
-    console.log( sessionId );
-    res.sendStatus(200);
+function logout( id ){
+    const sql = "update taxi_drivers set `logged` = false where `id` = ? limit 1";
+
+    return new Promise( (resolve, reject) => {
+        db.query( sql, [id], ( err, result, fields ) => {
+            if( err ) reject( err );
+
+            resolve( result );
+        } );
+    } );
 }
 
 module.exports = {
