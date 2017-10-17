@@ -3,18 +3,12 @@ var path = require('path');
 var favicon = require('serve-favicon');
 var logger = require('morgan');
 var passport   = require('passport')
-var session    = require('express-session')
-var MySQLStore = require('express-mysql-session')(session);
 var bodyParser = require('body-parser');
-
-// load options from config file and use it as connection settings for
-// session db
-const options = require('./config/config.json').development;
-const sessionStore = new MySQLStore(options);
 
 const db = require('./models/database');
 
 const api_routes = require( './routes/api' )
+const sessionParser = require( "./config/session" )
 
 var app = express();
 
@@ -40,15 +34,7 @@ app.use(bodyParser.json());
 // add session middleware
 // this will add sessionId to every response and retieve it from every request
 // the session is stored into cookie and TODO: mariadb
-app.use(session({
-  secret: 'taxiapp',
-  resave: true,
-  store: sessionStore,
-  saveUninitialized:true,
-  cookie : {
-    maxAge : 86400000
-  }
-}));
+app.use( sessionParser );
 
 // add passport middleware
 // responsible of handling the user authorization to the system
