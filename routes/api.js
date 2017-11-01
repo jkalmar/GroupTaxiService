@@ -36,9 +36,11 @@ router.get('/users', auth.isLoggedIn, function(req, res, next) {
 router.post('/driver', auth.isLoggedIn, function( req, res, next ) {
     console.log( req.user );
     console.log( req.body );
-    taxi_drivers.updateLocation( req.body.lat, req.body.long, req.user );
-
-    res.sendStatus( 200 );
+    taxi_drivers.updateLocation( req.body.lat, req.body.long, req.user ).then( value => {
+        res.sendStatus( 200 );
+    } ).catch( err => {
+        res.sendStatus( 500 );
+    } )
 } );
 
 /**

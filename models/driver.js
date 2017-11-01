@@ -77,7 +77,7 @@ const getTaxi = (id) => {
 
 const updateLocation = (lang, long, id) => {
     return new Promise( (resolve, reject) => {
-        db.query('update taxi_drivers set langtitude = ?, longtitude = ? where id = ? limit 1', [lang, long, id], ( err, result, fields ) => {
+        db.query('update taxi_drivers set latitude = ?, longitude = ? where id = ? limit 1', [lang, long, id], ( err, result, fields ) => {
             if( err ) reject( err );
 
             resolve( result );

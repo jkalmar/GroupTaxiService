@@ -33,7 +33,7 @@ const isLoggedIn = ( req, res, next ) =>
     }
 
     req.session.destroy( ( err ) => {
-        res.sendStatus(401);
+        res.sendStatus(403);
     } )
     
 }
