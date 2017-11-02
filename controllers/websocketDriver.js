@@ -30,15 +30,21 @@ function locationUpdate( userId, msg )
     sendEach( userId, toSend );
 }
 
-function panic( userId, msg )
+function panic( ws, userId, msg )
 {
-    toSend = { "op" : "panic", "id" : userId }
+    toSend = { "op" : "panic", "id" : userId, "state" : msg.state }
+
+    console.log( msg.state );
+    const msgSelf = JSON.stringify(toSend);
 
     sendEach( userId, toSend );
+    ws.send( msgSelf )
 }
 
 function newDriver( userId )
 {
+    debug( "sending update" );
+
     taxi_drivers.getTaxiById( userId ).then( ( data ) => {
         toSend = { "op" : "newDriver", "id" : userId, "data" : data }
         
@@ -72,6 +78,13 @@ function getAll( wsclient, userId )
 
         wsclient.send( JSON.stringify( toSend ) );
     } )
+}
+
+function order( userId, msg )
+{
+    const toSend = { "op" : "order", "id" : userId, "data" : { "id" : 25, "from" : { "lat" : 49.8, "lng" : 18.95 }, "to" : { "lat" : 49.7, "lng" : 18.93 } } }
+    
+    sendEach( userId, toSend );
 }
 
 
@@ -118,7 +131,6 @@ function init(server) {
 
         debug(`User with id ${userID} connected`);
         
-
         // register this connection under user id
         drivers[ userID ] = ws;
         ws.userID = userID;
@@ -133,11 +145,13 @@ function init(server) {
 
             if( msg.op == "panic" )
             {
-                panic( userID, message );
+                panic( ws, userID, msg );
             } else if( msg.op == "update" ) {
                 locationUpdate( userID, msg )
             } else if( msg.op == "getAll" ) {
                 getAll( ws, userID );
+            } else if( msg.op == "order" ) {
+                order( userID, msg );
             }
 
 
