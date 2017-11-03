@@ -3,6 +3,7 @@ var router = express.Router();
 const debug = require('debug')('backend:api');
 var passport   = require('passport');
 const auth = require('../controllers/auth');
+const issues = require('../models/issues');
 
 const taxi_drivers = require('../models/driver');
 
@@ -153,6 +154,19 @@ router.post( '/trouble', auth.isLoggedIn, function( req, res, next ) {
  */
 router.delete( '/trouble', auth.isLoggedIn, function( req, res, next ) {
     trouble.deleteDriver(req, res, next);
+} )
+
+router.post( "/issue", function( req, res, next )
+{
+    debug( "got issue: " + JSON.stringify( req.body ) );
+
+    issues( req.body ).then( value => {
+        res.sendStatus( 200 );
+    } ).catch( err => {
+        debug( "Sending 500" );
+        debug( err);
+        res.sendStatus( 500 );
+    } )   
 } )
 
 /*

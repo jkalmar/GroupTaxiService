@@ -124,7 +124,7 @@ function init(server) {
             ws.isAlive = false;
             ws.ping('', false, true);
         });
-     }, 60000);
+     }, 120000);
 
     wss.on('connection', (ws, req) => {
         const userID = req.session.passport.user;
@@ -139,6 +139,9 @@ function init(server) {
 
         ws.isAlive = true;
         ws.on('pong', heartbeat);
+        ws.on("ping", ( message ) => {
+            debug( "Recv ping message" );
+        })
 
         ws.on('message', (message) => {
             let msg = JSON.parse( message );
@@ -164,9 +167,12 @@ function init(server) {
             debug( `Code: ${code}` );
             debug( `Reason: ${reason}` );
 
-            delete drivers[ userID ];
-
-            loggoutDriver( userID );
+            if( drivers[ userID ] === ws )
+            {
+                debug( "Deleting driver from db" );
+                delete drivers[ userID ];
+                loggoutDriver( userID );
+            }
         });
 
         // Error should be handled as disconnect
