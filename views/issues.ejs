@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Issue DB</title>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
+  </head>
+  <body>
+    <h1>Issues</h1>
+    <table class="pure-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>autor</th>
+                <th>Popis</th>
+            </tr>
+        </thead>
+    
+        <tbody>
+            <% for( let i = 0; i < issues.length; i++ ) { %>
+            <% if( i % 2 == 0 ){ %>
+                <tr class="pure-table-odd">
+                <td><%= issues[i].id %></td>
+                <td><%= issues[i].author %></td>
+                <td><%= issues[i].message %></td>
+
+                </tr>
+            <% } else{ %>  
+                <tr>
+                <td><%= issues[i].id %></td>
+                <td><%= issues[i].author %></td>
+                <td><%= issues[i].message %></td>
+                </tr>
+            <% } %>
+
+            <% } %>
+        </tbody>
+    </table>
+
+  </body>
+</html>

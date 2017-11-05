@@ -1,8 +1,9 @@
 const db = require('./database');
+const debug = require( "debug" )("backend:issues")
 
 
 const insertIssue = ( issue ) => {
-
+    debug( "Inserting issue" )
 
     return new Promise( ( resolve, reject ) => {
         const sql = "insert into issues (type, message) values (?, ?)";
@@ -16,4 +17,21 @@ const insertIssue = ( issue ) => {
     } );
 }
 
-module.exports = insertIssue;
+function getAll()
+{
+    debug( "Getting everything" )
+    return new Promise( ( resolve, reject ) => {
+        const sql = "SELECT * FROM issues";
+
+        db.query( sql, [], (err, result, fields) => {
+            if( err ) { reject( err ) }
+
+            resolve( result );
+        } );
+    } );
+}
+
+module.exports = {
+    insertIssue,
+    getAll
+}

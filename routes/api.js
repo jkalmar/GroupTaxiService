@@ -18,7 +18,7 @@ router.get('/', auth.isLoggedIn, function(req, res, next) {
     } )
 });
 
-router.get('/drivers', auth.isLoggedIn, function(req, res, next) {
+router.get('/drivers',  function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
         res.json({ users : value });
     } ).catch( value => {
@@ -160,13 +160,24 @@ router.post( "/issue", function( req, res, next )
 {
     debug( "got issue: " + JSON.stringify( req.body ) );
 
-    issues( req.body ).then( value => {
+    issues.insertIssue( req.body ).then( value => {
         res.sendStatus( 200 );
     } ).catch( err => {
         debug( "Sending 500" );
         debug( err);
         res.sendStatus( 500 );
     } )   
+} )
+
+router.get( "/issues", function( req, res, next )
+{
+    issues.getAll().then( value => {
+        debug( value );
+        res.render('issues', { "issues" : value });
+    } ).catch( err => {
+        debug( err );
+        res.sendStatus( 500 );
+    } )
 } )
 
 /*
