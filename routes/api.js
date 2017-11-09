@@ -4,13 +4,18 @@ const debug = require('debug')('backend:api');
 var passport   = require('passport');
 const auth = require('../controllers/auth');
 const issues = require('../models/issues');
+const views = require( "../models/views" );
 
 const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
 router.get('/', function(req, res, next) {
-    res.render( "index" );
+    views.incView( "index" ).then( value => {
+        res.render( "index" );
+    } ).catch( value => {
+        res.sendStatus( 500 );
+    } )
 });
 
 router.get('/drivers',  function(req, res, next) {
