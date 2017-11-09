@@ -9,13 +9,8 @@ const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
-router.get('/', auth.isLoggedIn, function(req, res, next) {
-    taxi_drivers.getTaxis().then( value => {
-        res.json({ users : value });
-    } ).catch( value => {
-        res.sendStatus( 200 );
-
-    } )
+router.get('/', function(req, res, next) {
+    res.render( "index" );
 });
 
 router.get('/drivers',  function(req, res, next) {

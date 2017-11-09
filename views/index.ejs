@@ -1,11 +1,172 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>TakeMeHome</title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
-  <body>
-    <h1>TakeMeHome</h1>
-    <p>Welcome to TakeMeHome test API</p>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A layout example that shows off a responsive pricing table.">
+    <title>GroupTaxi</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/grids-responsive-min.css">
+    <link rel="stylesheet" href="css/grouptaxi.css">
+    <link rel="stylesheet" href="css/lightbox.min.css" />
+    
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+</head>
+<body>
+
+<div class="pure-menu pure-menu-horizontal">
+    <a href="#" class="pure-menu-heading">GroupTaxi</a>
+    <ul class="pure-menu-list">
+        <li class="pure-menu-item pure-menu-selected"><a href="#" class="pure-menu-link">Home</a></li>
+        <li class="pure-menu-item"><a href="#" class="pure-menu-link">Kontakt</a></li>
+    </ul>
+</div>
+
+<div class="banner"></div>
+
+<div class="l-content">
+    <div class="call pure-g">
+        <div class="pure-u-1" >
+            <a class="call-button pure-button" href="#">Zavolaj si Taxi</a>
+        </div>
+    </div>
+
+    <div class="pricing-tables pure-g">
+        <div class="pure-u-1 pure-u-md-1-3">
+            <div class="pricing-table pricing-table-free">
+                <div class="pricing-table-header">
+                    <h2>Super ceny</h2>
+
+                    <span class="pricing-table-price">
+                        od 1€ <span>za km</span>
+                    </span>
+                </div>
+
+                <ul class="pricing-table-list">
+                    <li>O cene 1</li>
+                    <li>O cene 2</li>
+                    <li>O cene 3</li>
+                </ul>
+
+                <img src="img/check.svg" alt="OK" height="60" width="60" class="cool-image">
+            </div>
+        </div>
+
+        <div class="pure-u-1 pure-u-md-1-3">
+            <div class="pricing-table pricing-table-biz pricing-table-selected">
+                <div class="pricing-table-header">
+                    <h2>Skuseny vodiči</h2>
+
+                    <span class="pricing-table-price">
+                        25+ <span>rokov skusenosti</span>
+                    </span>
+                </div>
+
+                <ul class="pricing-table-list">
+                    <li>O skusenostiach 1</li>
+                    <li>O skusenostiach 2</li>
+                    <li>O skusenostiach 3</li>
+                </ul>
+
+                <img src="img/check.svg" alt="OK" height="60" width="60" class="cool-image">
+            </div>
+        </div>
+
+        <div class="pure-u-1 pure-u-md-1-3">
+            <div class="pricing-table pricing-table-enterprise">
+                <div class="pricing-table-header">
+                    <h2>Bezpečná jazda</h2>
+
+                    <span class="pricing-table-price">
+                        0 <span>nehôd</span>
+                    </span>
+                </div>
+
+                <ul class="pricing-table-list">
+                    <li>O bezpecnosti 1</li>
+                    <li>O bezpecnosti 2</li>
+                    <li>O bezpecnosti 3</li>
+                </ul>
+
+                <img src="img/check.svg" alt="OK" height="60" width="60" class="cool-image">
+            </div>
+        </div>
+    </div> <!-- end pricing-tables -->
+
+    <div class="information pure-g">
+        <div class="pure-u-1 pure-u-md-1-2">
+            <div class="center l-box">
+                <h3 class="information-head">Kto sme</h3>
+                <p>
+                    Nejak 5 riadkov o tom kto vlastne ste<br>
+                    Nejak 5 riadkov o tom kto vlastne ste<br>
+                    Nejak 5 riadkov o tom kto vlastne ste<br>
+                    Nejak 5 riadkov o tom kto vlastne ste<br>
+                    Nejak 5 riadkov o tom kto vlastne ste<br>
+                </p>
+            </div>
+        </div>
+
+        <div class="pure-u-1 pure-u-md-1-2">
+            <div class="center l-box">
+                <h3 class="information-head">Nase ciele</h3>
+                <p>
+                    Nejak 5 riadkov o tom nasich cieloch<br>
+                    Nejak 5 riadkov o tom nasich cieloch<br>
+                    Nejak 5 riadkov o tom nasich cieloch<br>
+                    Nejak 5 riadkov o tom nasich cieloch<br>
+                    Nejak 5 riadkov o tom nasich cieloch<br>
+                </p>
+            </div>
+        </div>
+
+        <div class="center pure-u-1">
+            <div class="l-box">
+                <h3 class="information-head">Ponukane sluzby</h3>
+                <p>
+                        Ponukane sluzby<br>
+                        Ponukane sluzby<br>
+                        Ponukane sluzby<br>
+                        Ponukane sluzby<br>
+                        Ponukane sluzby<br>
+                </p>
+
+            </div>
+        </div>
+
+    </div> <!-- end information -->
+
+    <div class="center"><h3 class="information-head">Nase auta</h3></div>
+    <div class="gallery pure-g">
+
+            <div class="pure-u-1 pure-u-md-1-2"><a href="img/taxik.png"><img class="gallery-item" src="img/taxik_min.png" alt="Image"></a></div>
+            <div class="pure-u-1 pure-u-md-1-2"><a href="img/taxik.png"><img class="gallery-item" src="img/taxik_min.png" alt="Image"></a></div>
+            <div class="pure-u-1 pure-u-md-1-2"><a href="img/taxik.png"><img class="gallery-item" src="img/taxik_min.png" alt="Image"></a></div>
+            <div class="pure-u-1 pure-u-md-1-2"><a href="img/taxik.png"><img class="gallery-item" src="img/taxik_min.png" alt="Image"></a></div>
+
+    </div>
+</div> <!-- end l-content -->
+
+
+
+
+<div class="footer l-box">
+    <p>
+        Vytvorene v roku 2017. Autor: <a href='http://jkalmar.sk/'>jkalmar</a>
+    </p>
+</div>
+
+<script src="js/lightbox.min.js"></script>
+
+<script>
+    $(function()
+    {
+       $('.gallery a').lightbox(); 
+    });
+</script>
+
+
+
+</body>
 </html>
