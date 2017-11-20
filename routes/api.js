@@ -10,7 +10,7 @@ const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 
-router.get('/', function(req, res, next) {
+router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
         res.render( "index" );
     } ).catch( value => {
