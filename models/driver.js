@@ -2,10 +2,12 @@ const uuidv4 = require('uuid/v4');
 
 const db = require('./database');
 
+const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
+
 const getTaxis = function()
 {
     return new Promise( (resolve, reject) => {
-        db.query( 'select * from taxi_drivers where logged = true', ( err, result, fields ) => {
+        db.query( sqlGetTaxis, ( err, result, fields ) => {
             if( err )
             {
                 reject( err );
@@ -75,9 +77,9 @@ const getTaxi = (id) => {
     } );
 }
 
-const updateLocation = (lang, long, id) => {
+const updateLocation = (lat, long, id) => {
     return new Promise( (resolve, reject) => {
-        db.query('update taxi_drivers set latitude = ?, longitude = ? where id = ? limit 1', [lang, long, id], ( err, result, fields ) => {
+        db.query('update taxi_drivers set latitude = ?, longitude = ? where id = ? limit 1', [lat, long, id], ( err, result, fields ) => {
             if( err ) reject( err );
 
             resolve( result );

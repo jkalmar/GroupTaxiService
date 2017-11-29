@@ -12,6 +12,7 @@
                 <th>ID</th>
                 <th>autor</th>
                 <th>Popis</th>
+                <th>Feedback</th>
             </tr>
         </thead>
     
@@ -22,6 +23,7 @@
                 <td><%= issues[i].id %></td>
                 <td><%= issues[i].author %></td>
                 <td><%= issues[i].message %></td>
+                <td><%= issues[i].checked %></td>
 
                 </tr>
             <% } else{ %>  
@@ -29,6 +31,7 @@
                 <td><%= issues[i].id %></td>
                 <td><%= issues[i].author %></td>
                 <td><%= issues[i].message %></td>
+                <td><%= issues[i].checked %></td>
                 </tr>
             <% } %>
 

@@ -25,9 +25,12 @@ function sendEach( userId, toSend )
 
 function locationUpdate( userId, msg )
 {
-    toSend = { "op" : "location", "id" : userId, "data" : msg }
-
-    sendEach( userId, toSend );
+    taxi_drivers.updateLocation( msg.lat, msg.lng, msg.id ).then( value => {
+        toSend = { "op" : "location", "id" : userId, "data" : msg }
+        sendEach( userId, toSend );
+    } ).catch( err => {
+        debug( "ERROR: update location" );
+    } )
 }
 
 function panic( ws, userId, msg )
@@ -47,7 +50,7 @@ function newDriver( userId )
 
     taxi_drivers.getTaxiById( userId ).then( ( data ) => {
         toSend = { "op" : "newDriver", "id" : userId, "data" : data }
-        
+
         sendEach( userId, toSend );
     } ).catch( ( err ) => {
         console.log( err );
@@ -56,9 +59,11 @@ function newDriver( userId )
 
 function loggoutDriver( userId )
 {
+    debug( "Logging out driver with id: " + userId );
+
     taxi_drivers.logout( userId ).then( ( data ) => {
         toSend = { "op" : "byeDriver", "id" : userId }
-        
+
         sendEach( userId, toSend );
     } ).catch( ( err ) => {
         console.log( err );
@@ -68,7 +73,7 @@ function loggoutDriver( userId )
 function getAll( wsclient, userId )
 {
     const toSend = { "op" : "allDrivers", "id" : userId }
-    
+
     taxi_drivers.getTaxis().then( value => {
         toSend.data = value;
 
@@ -78,6 +83,8 @@ function getAll( wsclient, userId )
 
         wsclient.send( JSON.stringify( toSend ) );
     } )
+
+    
 }
 
 function order( userId, msg )
@@ -170,6 +177,9 @@ function init(server) {
             if( drivers[ userID ] === ws )
             {
                 debug( "Deleting driver from db" );
+
+                //req.session.destroy();
+
                 delete drivers[ userID ];
                 loggoutDriver( userID );
             }
@@ -177,7 +187,10 @@ function init(server) {
 
         // Error should be handled as disconnect
         ws.on("error", (err) => {
+            debug( "Error recv for driver: " + userID );
             delete drivers[ userID ];
+
+            //req.session.destroy();
 
             loggoutDriver( userID );
         })

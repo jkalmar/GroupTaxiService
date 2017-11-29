@@ -22,7 +22,7 @@ router.get('/drivers',  function(req, res, next) {
     taxi_drivers.getTaxis().then( value => {
         res.json({ users : value });
     } ).catch( value => {
-        res.sendStatus( 200 );
+        res.sendStatus( 500 );
     } )
 });
 
