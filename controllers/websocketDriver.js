@@ -5,9 +5,21 @@ const taxi_drivers = require( "../models/driver" );
 
 var drivers = [];
 
+
 function heartbeat()
 {
     this.isAlive = true;
+}
+
+WebSocket.prototype.setDefaults = function( userID )
+{
+    debug( "Setting values for ws" );
+    this.userID = userID;
+    this.isAlive = true;
+    this.on('pong', heartbeat);
+    this.on("ping", ( message ) => {
+        debug( "Recv ping message" );
+    })
 }
 
 function sendEach( userId, toSend )
@@ -139,16 +151,14 @@ function init(server) {
         debug(`User with id ${userID} connected`);
         
         // register this connection under user id
+
+        if( ! ( userID in drivers ) )
+        {
+            newDriver( userID );
+        }
+
         drivers[ userID ] = ws;
-        ws.userID = userID;
-
-        newDriver( userID );
-
-        ws.isAlive = true;
-        ws.on('pong', heartbeat);
-        ws.on("ping", ( message ) => {
-            debug( "Recv ping message" );
-        })
+        ws.setDefaults( userID );
 
         ws.on('message', (message) => {
             let msg = JSON.parse( message );
@@ -164,7 +174,6 @@ function init(server) {
                 order( userID, msg );
             }
 
-
             console.log(`WS message ${message} from user ${userID}`);
         });
 
@@ -178,7 +187,7 @@ function init(server) {
             {
                 debug( "Deleting driver from db" );
 
-                //req.session.destroy();
+                req.session.destroy();
 
                 delete drivers[ userID ];
                 loggoutDriver( userID );
@@ -190,11 +199,13 @@ function init(server) {
             debug( "Error recv for driver: " + userID );
             delete drivers[ userID ];
 
-            //req.session.destroy();
+            req.session.destroy();
 
             loggoutDriver( userID );
         })
     });
 }
+
+
 
 module.exports = init
