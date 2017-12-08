@@ -66,7 +66,9 @@ router.get('/comunication', ( req, res, next ) => {
  * Post new order from user to system
  */
 router.post('/order',( req, res, next ) => {
+    console.log( req.body );
 
+    res.sendStatus( 200 );
 });
 
 /**

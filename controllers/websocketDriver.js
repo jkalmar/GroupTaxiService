@@ -18,7 +18,8 @@ WebSocket.prototype.setDefaults = function( userID )
     this.isAlive = true;
     this.on('pong', heartbeat);
     this.on("ping", ( message ) => {
-        debug( "Recv ping message" );
+        //debug( "Recv ping message" );
+        this.isAlive = true;
     })
 }
 
@@ -132,18 +133,21 @@ function init(server) {
     {
         debug( "Calling bronkenConnCheck" );
 
-        wss.clients.forEach(function each(ws)
+        wss.clients.forEach( (conn) =>
         {
-            if ( ws.isAlive === false ) 
+            debug( `User: ${conn.userID} isAlive: ${conn.isAlive}` )
+
+            if( conn.isAlive === false ) 
             {
-                debug( `Found broked connecting, terminating for id: ${ws.userID}` );
-                return ws.terminate();
+                console.log( "Found broken connection" );
+                console.log( "User ID: " + conn.userID);
+                return conn.terminate();
             }
-      
-            ws.isAlive = false;
-            ws.ping('', false, true);
+                 
+            conn.isAlive = false;
+            conn.ping('', false, true);
         });
-     }, 120000);
+     }, 30000);
 
     wss.on('connection', (ws, req) => {
         const userID = req.session.passport.user;
@@ -183,6 +187,7 @@ function init(server) {
             debug( `Code: ${code}` );
             debug( `Reason: ${reason}` );
 
+            
             if( drivers[ userID ] === ws )
             {
                 debug( "Deleting driver from db" );
@@ -192,6 +197,8 @@ function init(server) {
                 delete drivers[ userID ];
                 loggoutDriver( userID );
             }
+
+            
         });
 
         // Error should be handled as disconnect
