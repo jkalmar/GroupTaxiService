@@ -3,18 +3,43 @@ const sessionParser = require("../config/session")
 const debug = require("debug")("backend:ws")
 const taxi_drivers = require( "../models/driver" );
 
+const correctCloseCode = 3000;
+const waitForDriverReConnectionTime = 20000;
+const brokenConnectionTimer = 30000;
+const syncTime = 60000;
+
 var drivers = [];
 
+class Driver{
+    constructor( id, ws ){
+        this.id = id;
+        this.wsconn = ws;
+        this.isAlive = false;
+        this.timeout = null;
+    }
+
+    logout(){
+        debug( "Logging out driver with id: " + this.id );
+        
+        taxi_drivers.logout( this.id ).then( ( data ) => {
+            toSend = { "op" : "byeDriver", "id" : this.id }
+        
+            sendEach( this.id, toSend );
+        } ).catch( ( err ) => {
+            console.log( err );
+        } )
+    }
+}
 
 function heartbeat()
 {
     this.isAlive = true;
 }
 
-WebSocket.prototype.setDefaults = function( userID )
+WebSocket.prototype.setDefaults = function( userId )
 {
     debug( "Setting values for ws" );
-    this.userID = userID;
+    this.userId = userId;
     this.isAlive = true;
     this.on('pong', heartbeat);
     this.on("ping", ( message ) => {
@@ -31,7 +56,7 @@ function sendEach( userId, toSend )
         // do not send panic handle to myself
         if( index != userId )
         {
-            theDriver.send( msg );
+            theDriver.wsconn.send( msg );
         }
     })
 }
@@ -42,6 +67,7 @@ function locationUpdate( userId, msg )
         toSend = { "op" : "location", "id" : userId, "data" : msg }
         sendEach( userId, toSend );
     } ).catch( err => {
+        debug( err );
         debug( "ERROR: update location" );
     } )
 }
@@ -57,27 +83,14 @@ function panic( ws, userId, msg )
     ws.send( msgSelf )
 }
 
-function newDriver( userId )
+function newDriver( aDriver )
 {
     debug( "sending update" );
 
-    taxi_drivers.getTaxiById( userId ).then( ( data ) => {
-        toSend = { "op" : "newDriver", "id" : userId, "data" : data }
+    taxi_drivers.getTaxiById( aDriver.id ).then( ( data ) => {
+        toSend = { "op" : "newDriver", "id" : aDriver.id, "data" : data }
 
-        sendEach( userId, toSend );
-    } ).catch( ( err ) => {
-        console.log( err );
-    } )
-}
-
-function loggoutDriver( userId )
-{
-    debug( "Logging out driver with id: " + userId );
-
-    taxi_drivers.logout( userId ).then( ( data ) => {
-        toSend = { "op" : "byeDriver", "id" : userId }
-
-        sendEach( userId, toSend );
+        sendEach( aDriver.id, toSend );
     } ).catch( ( err ) => {
         console.log( err );
     } )
@@ -129,86 +142,113 @@ function init(server) {
         server
     });
 
-    const brokenConnCheck = setInterval(function ping()
+    function brokenConnectionFunc()
     {
-        debug( "Calling bronkenConnCheck" );
+        debug( "BrokenConnectionFunc" );
+        
+        const currentTime = Date.now();
 
         wss.clients.forEach( (conn) =>
-        {
-            debug( `User: ${conn.userID} isAlive: ${conn.isAlive}` )
+        { 
+            if( conn.isAlive === false ){
+                debug( `Found broken connection. User: ${ conn.userId }` );
 
-            if( conn.isAlive === false ) 
-            {
-                console.log( "Found broken connection" );
-                console.log( "User ID: " + conn.userID);
+                // mark this connection as broken and terminate it
+                theDriver = drivers[ conn.userId ];
+
+                if( theDriver && theDriver.wsconn === conn )
+                {
+                    debug(`Deleting driver: ${theDriver.id}`);
+                    delete drivers[ theDriver.id ];
+                    theDriver.logout();
+                }
+
                 return conn.terminate();
             }
                  
             conn.isAlive = false;
             conn.ping('', false, true);
         });
-     }, 30000);
+
+        // now check all drivers if someone is in timeout state
+        driversToDelete = [];
+        drivers.forEach( ( aDriver ) => {
+            
+            // check if driver has timeout set
+            // and the time has passed for him            
+            if( aDriver.timeout && aDriver.timeout < currentTime ){
+                debug(`Pushing driver: ${aDriver.id} to delete` );
+                driversToDelete.push( aDriver );
+            }
+        } )
+
+        driversToDelete.forEach( ( aDriver ) =>{
+            aDriver.logout();
+            delete drivers[ aDriver.id ];
+        } )
+
+    }
+
+    const brokenConnCheck = setInterval( brokenConnectionFunc, brokenConnectionTimer);
 
     wss.on('connection', (ws, req) => {
-        const userID = req.session.passport.user;
+        const theDriver = new Driver( req.session.passport.user, ws );
+        debug(`User with id ${theDriver.id} connected`);
 
-        debug(`User with id ${userID} connected`);
-        
         // register this connection under user id
-
-        if( ! ( userID in drivers ) )
+        if( ! ( theDriver.id in drivers ) )
         {
-            newDriver( userID );
+            newDriver( theDriver );
         }
 
-        drivers[ userID ] = ws;
-        ws.setDefaults( userID );
+        drivers[ theDriver.id ] = theDriver;
+        ws.setDefaults( theDriver.id );
 
         ws.on('message', (message) => {
             let msg = JSON.parse( message );
 
             if( msg.op == "panic" )
             {
-                panic( ws, userID, msg );
+                panic( ws, theDriver.id, msg );
             } else if( msg.op == "update" ) {
-                locationUpdate( userID, msg )
+                locationUpdate( theDriver.id, msg )
             } else if( msg.op == "getAll" ) {
-                getAll( ws, userID );
+                getAll( ws, theDriver.id );
             } else if( msg.op == "order" ) {
-                order( userID, msg );
+                order( theDriver.id, msg );
             }
 
-            console.log(`WS message ${message} from user ${userID}`);
+            console.log(`WS message ${message} from user ${theDriver.id}`);
         });
 
         // In close ws event unregister user id from connections
         ws.on("close", (code, reason) => {
-            debug( `Closing connection for user: ${userID}` );
+            debug( `Closing connection for user: ${theDriver.id}` );
             debug( `Code: ${code}` );
             debug( `Reason: ${reason}` );
 
-            
-            if( drivers[ userID ] === ws )
-            {
-                debug( "Deleting driver from db" );
-
-                req.session.destroy();
-
-                delete drivers[ userID ];
-                loggoutDriver( userID );
+            if( code == correctCloseCode ){
+                theDriver.logout();
+                delete drivers[ theDriver.id ];
+                req.session.destroy();                       
+            }else if( drivers[ theDriver.id ] ){
+                
+                if( drivers[ theDriver.id ].wsconn === ws ){
+                    theDriver.timeout = Date.now() + waitForDriverReConnectionTime;
+                    req.session.destroy();                   
+                }
             }
 
-            
         });
 
         // Error should be handled as disconnect
         ws.on("error", (err) => {
-            debug( "Error recv for driver: " + userID );
-            delete drivers[ userID ];
+            debug( "Error recv for driver: " + userId );
+            theDriver = drivers[ userId ]
+            theDriver.logout();
+            delete drivers[ userId ];
 
             req.session.destroy();
-
-            loggoutDriver( userID );
         })
     });
 }
