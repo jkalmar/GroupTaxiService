@@ -56,7 +56,10 @@ function sendEach( userId, toSend )
         // do not send panic handle to myself
         if( index != userId )
         {
-            theDriver.wsconn.send( msg );
+            if( theDriver.wsconn )
+            {
+                theDriver.wsconn.send( msg );
+            }
         }
     })
 }
@@ -235,6 +238,7 @@ function init(server) {
                 
                 if( drivers[ theDriver.id ].wsconn === ws ){
                     theDriver.timeout = Date.now() + waitForDriverReConnectionTime;
+                    theDriver.wsconn = null;
                     req.session.destroy();                   
                 }
             }
