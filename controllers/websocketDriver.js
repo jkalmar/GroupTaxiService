@@ -31,6 +31,13 @@ class Driver{
     }
 }
 
+function makeOrder( anOrder, id )
+{
+    debug( `Sending order: ${anOrder} to drivers` );
+    const toSend = { "op" : "order", "id" : id, "data" : anOrder }
+    sendEach( 0, toSend );
+}
+
 function heartbeat()
 {
     this.isAlive = true;
@@ -259,4 +266,7 @@ function init(server) {
 
 
 
-module.exports = init
+module.exports = {
+    init,
+    makeOrder,
+}

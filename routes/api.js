@@ -9,6 +9,7 @@ const views = require( "../models/views" );
 const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
+const orders = require( "../models/orders" )
 
 router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
@@ -49,8 +50,6 @@ router.post('/driver', auth.isLoggedIn, function( req, res, next ) {
  */
 router.post('/communication', ( req, res, next ) => {
     console.log( req.body )
-
-
     res.sendStatus( 200 );
 } );
 
@@ -66,9 +65,7 @@ router.get('/comunication', ( req, res, next ) => {
  * Post new order from user to system
  */
 router.post('/order',( req, res, next ) => {
-    console.log( req.body );
-
-    res.sendStatus( 200 );
+    orders.createNewOrder( res, req.body );
 });
 
 /**
