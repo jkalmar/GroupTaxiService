@@ -1,8 +1,10 @@
 const uuidv4 = require('uuid/v4');
 
 const db = require('./database');
+const debug = require( "debug" )("backend:drivers")
 
 const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
+const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
 
 const getTaxis = function()
 {
@@ -128,6 +130,33 @@ function logout( id ){
     } );
 }
 
+function brokenConnection( id )
+{
+    const sql = "insert into broken_connections (taxiId, lat, lng) values (?, ?, ?)";
+
+    db.query( sqlGetLatLng, [ id ], ( err, result, fields ) => {
+        if( err )
+        {
+            debug( err );
+            return;
+        }
+
+        debug( result )
+
+        const lat = result[0].latitude;
+        const lng = result[0].longitude;
+
+        db.query( sql, [ id, lat, lng ], ( err, result, fields ) => {
+            if( err )
+            {
+                debug( err );
+                return;
+            }
+
+        } )
+    } )
+}
+
 module.exports = {
     getTaxi,
     getTaxiByName,
@@ -137,5 +166,6 @@ module.exports = {
     updateLocation,
     login,
     logout,
-    insertTaxi
+    insertTaxi,
+    brokenConnection
 }

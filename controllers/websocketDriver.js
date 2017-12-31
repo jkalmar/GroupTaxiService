@@ -5,7 +5,7 @@ const taxi_drivers = require( "../models/driver" );
 
 const correctCloseCode = 3000;
 const waitForDriverReConnectionTime = 20000;
-const brokenConnectionTimer = 30000;
+const brokenConnectionTimer = 60000;
 const syncTime = 60000;
 
 var drivers = [];
@@ -28,6 +28,12 @@ class Driver{
         } ).catch( ( err ) => {
             console.log( err );
         } )
+    }
+
+    error(){
+        debug( "Writing broken connection to db" )
+        taxi_drivers.brokenConnection( this.id );
+        this.logout();
     }
 }
 
@@ -170,7 +176,7 @@ function init(server) {
                 {
                     debug(`Deleting driver: ${theDriver.id}`);
                     delete drivers[ theDriver.id ];
-                    theDriver.logout();
+                    theDriver.error();
                 }
 
                 return conn.terminate();
@@ -193,7 +199,7 @@ function init(server) {
         } )
 
         driversToDelete.forEach( ( aDriver ) =>{
-            aDriver.logout();
+            aDriver.error();
             delete drivers[ aDriver.id ];
         } )
 
