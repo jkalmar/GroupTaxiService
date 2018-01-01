@@ -179,6 +179,16 @@ router.get( "/issues", function( req, res, next )
     } )
 } )
 
+router.get( "/broken", function( req, res, next )
+{
+    taxi_drivers.getBrokenConnections().then( value => {
+        res.render( "broken", { "data" : value } );
+    } ).catch( err => {
+        debug( err )
+        res.sendStatus( 500 );
+    } )
+} )
+
 /*
 router.get('/users/:id', function(req, res, next) {
     console.log( req.params.id );

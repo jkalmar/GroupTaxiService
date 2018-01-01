@@ -5,6 +5,7 @@ const debug = require( "debug" )("backend:drivers")
 
 const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
 const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
+const sqlGetBrokenConn = "SELECT `broken_connections`.id, username, lat, lng FROM `broken_connections` LEFT JOIN `taxi_drivers` ON `broken_connections`.taxiId = `taxi_drivers`.id limit 2000";
 
 const getTaxis = function()
 {
@@ -157,6 +158,16 @@ function brokenConnection( id )
     } )
 }
 
+function getBrokenConnections()
+{
+    return new Promise( (resolve, reject) => {
+        db.query( sqlGetBrokenConn, [], ( err, result, fields ) => {
+            if( err ) reject( err );
+            resolve( result );
+        } );
+    } );
+}
+
 module.exports = {
     getTaxi,
     getTaxiByName,
@@ -167,5 +178,6 @@ module.exports = {
     login,
     logout,
     insertTaxi,
-    brokenConnection
+    brokenConnection,
+    getBrokenConnections
 }
