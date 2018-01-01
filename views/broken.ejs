@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Simple Map</title>
+    <title>Vypadky</title>
     <meta name="viewport" content="initial-scale=1.0">
     <meta charset="utf-8">
     <style>
@@ -28,13 +28,23 @@
           zoom: 12
         });
 
-        <% for( let i = 0; i < data.length; i++ ) { %>
-          new google.maps.Marker({
-              position: { lat: <%= data[i].lat %>, lng : <%= data[i].lng %> },
-              map: map,
-              title: "<%= data[i].username %>"
+        var data = <%- JSON.stringify(data) %>
+
+        for( let i = 0; i < data.length; i++ ) {
+          let infowindow = new google.maps.InfoWindow({
+            content: `<span>${data[i].username}</span>`
           });
-        <% } %>
+
+          let marker = new google.maps.Marker({
+              position: { lat: data[i].lat, lng : data[i].lng },
+              map: map,
+              title: `${data[i].username}`
+          });
+
+          google.maps.event.addListener(marker, 'click', function() {
+            infowindow.open(map,marker);
+          });
+        }
       }
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCTZR7QvtFliaG2WmLcXe7o8veCwyPwxMY&callback=initMap"
