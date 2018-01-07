@@ -8,6 +8,8 @@ const connection = mysql.createConnection({
 
 console.log("Preping DB")
 
+const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '0'"
+
 connection.connect(function(err) {
   if (err) {
     console.error('error connecting: ' + err.stack);
@@ -15,6 +17,10 @@ connection.connect(function(err) {
   }
 
   console.log('connected as id ' + connection.threadId);
+
+  connection.query( sqlInitTaxi, [], ( err, res, fields ) =>{
+    console.log("drivers reseted")
+  } )
 });
 
 module.exports = connection;

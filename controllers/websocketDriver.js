@@ -37,10 +37,11 @@ class Driver{
     }
 }
 
-function makeOrder( anOrder, id )
+function makeOrder( anOrder )
 {
-    debug( `Sending order: ${anOrder} to drivers` );
-    const toSend = { "op" : "order", "id" : id, "data" : anOrder }
+    debug( `Sending order: ${anOrder.id} to drivers` );
+    debug( `Sending order: ${JSON.stringify(anOrder.order)} to drivers` );
+    const toSend = { "op" : "order", "id" : anOrder.id, "data" : anOrder.order }
     sendEach( 0, toSend );
 }
 
