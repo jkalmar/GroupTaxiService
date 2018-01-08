@@ -2,10 +2,8 @@ const db = require('./database');
 const debug = require("debug")("backend:orders");
 const drivers = require( "../controllers/websocketDriver" )
 
-const OrderTimeout = 10000
+const OrderTimeout = 70000
 const OrderSwitchTime = 15000
-
-var currentId = 1;
 
 const orderStateNew = 1;
 const orderStateTaken = 2;
@@ -48,7 +46,7 @@ class Order
         }
     }
 
-    onAccept( driverId )
+    onAccept( driverId, timeEstimate )
     {
         this.accepted = true;
         this.driverId = driverId;
@@ -57,6 +55,7 @@ class Order
         if( this.state === orderStateNew )
         {
             this.state = orderStateTaken;
+            this.time = timeEstimate;
             db.query( sqlTakeOrder, [ this.driverId ,this.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
@@ -156,9 +155,21 @@ function cancelOrder( req, res )
     }
 }
 
+/**
+ * Takes the order by a one driver
+ * This function should check if order is not taken by some other driver
+ * or is not timeouted and if is then return false. If everything is ok
+ * then return true and set driver ID and timeEstimate to order
+ *
+ * @param {number} orderId
+ * @param {number} driverId
+ * @param {number} timeEstimate
+ */
 function takeOrder( orderId, driverId, timeEstimate )
 {
+    const theOrder = orders[ orderId ];
 
+    if( theOrder ) theOrder.onAccept( driverId, timeEstimate )
 }
 
 module.exports = {

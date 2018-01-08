@@ -78,6 +78,16 @@ function sendEach( userId, toSend )
     })
 }
 
+function sendOne( theDriver, toSend )
+{
+    const msg = JSON.stringify(toSend);
+
+    if( theDriver.wsconn )
+    {
+        theDriver.wsconn.send( msg );
+    }
+}
+
 function locationUpdate( userId, msg )
 {
     taxi_drivers.updateLocation( msg.lat, msg.lng, msg.id ).then( value => {
