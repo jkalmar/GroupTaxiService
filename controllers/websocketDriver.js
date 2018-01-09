@@ -37,12 +37,28 @@ class Driver{
     }
 }
 
-function makeOrder( anOrder )
+function makeOrder( anOrder, driverId )
 {
-    debug( `Sending order: ${anOrder.id} to drivers` );
-    debug( `Sending order: ${JSON.stringify(anOrder.order)} to drivers` );
-    const toSend = { "op" : "order", "id" : anOrder.id, "data" : anOrder.order }
-    sendEach( 0, toSend );
+    return new Promise((resolve, reject) => {
+        taxi_drivers.getNextLogged( driverId ).then( value => {
+            if( value.length )
+            {
+                const theDriver = drivers[ value.id ];
+                const toSend = { "op" : "order", "id" : anOrder.id, "data" : anOrder.order }
+
+                debug( `Sending order: ${anOrder.id} to drivers` );
+                debug( `Sending order: ${JSON.stringify(anOrder.order)} to drivers` );
+
+                sendOne( theDriver, toSend );
+
+                resolve(1);
+            }
+
+            resolve(0)
+        } ).catch( err => {
+            reject( err )
+        } )
+    })
 }
 
 function heartbeat()

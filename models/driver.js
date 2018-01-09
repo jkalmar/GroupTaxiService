@@ -6,6 +6,7 @@ const debug = require( "debug" )("backend:drivers")
 const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
 const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
 const sqlGetBrokenConn = "SELECT `broken_connections`.id, username, lat, lng FROM `broken_connections` LEFT JOIN `taxi_drivers` ON `broken_connections`.taxiId = `taxi_drivers`.id limit 2000";
+const sqlGetNextLoggedDriver = "SELECT `id`, `username` FROM `taxi_drivers` WHERE `logged`=1 AND `id`>? limit 1"
 
 const getTaxis = function()
 {
@@ -131,6 +132,23 @@ function logout( id ){
     } );
 }
 
+/**
+ * Returns the next logged driver
+ * the driver who's id is higher that driverId
+ *
+ * @param {number} driverId id of previous driver
+ */
+function getNextLogged( driverId )
+{
+    return new Promise( (resolve, reject) => {
+        db.query( sqlGetNextLoggedDriver, [driverId], ( err, result, fields ) => {
+            if( err ) reject( err );
+
+            resolve( result );
+        } );
+    } );
+}
+
 function brokenConnection( id )
 {
     const sql = "insert into broken_connections (taxiId, lat, lng) values (?, ?, ?)";
@@ -179,5 +197,6 @@ module.exports = {
     logout,
     insertTaxi,
     brokenConnection,
-    getBrokenConnections
+    getBrokenConnections,
+    getNextLogged
 }

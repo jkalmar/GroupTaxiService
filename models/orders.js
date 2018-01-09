@@ -102,7 +102,17 @@ function createNewOrder( res, aParam )
         let theOrder = new Order( theId, aParam );
         orders[ theOrder.id ] = theOrder;
 
-        drivers.makeOrder( theOrder )
+        drivers.makeOrder( theOrder, 0 ).then( value => {
+            debug(value)
+            if( value ){
+                debug("all ok")
+            }
+            else{
+                debug("no driver available")
+            }
+        } ).catch( err => {
+            debug(err)
+        } )
 
         res.json( { "id" : theOrder.id } );
     } )
