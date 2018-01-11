@@ -68,6 +68,8 @@ router.post('/order',( req, res, next ) => {
     orders.createNewOrder( res, req.body );
 });
 
+router.post("/order/cancel", orders.cancelOrder );
+
 /**
  * Get new orders from system to taxi
  * This considers also driver total orders

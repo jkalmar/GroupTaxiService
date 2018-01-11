@@ -43,15 +43,18 @@ function makeOrder( anOrder, driverId )
         taxi_drivers.getNextLogged( driverId ).then( value => {
             if( value.length )
             {
-                const theDriver = drivers[ value.id ];
+                debug( value )
+
+                const theDriver = drivers[ value[0].id ];
                 const toSend = { "op" : "order", "id" : anOrder.id, "data" : anOrder.order }
 
                 debug( `Sending order: ${anOrder.id} to drivers` );
                 debug( `Sending order: ${JSON.stringify(anOrder.order)} to drivers` );
+                debug( `Driver: ${theDriver.id}` )
 
                 sendOne( theDriver, toSend );
 
-                resolve(1);
+                resolve(theDriver.id);
             }
 
             resolve(0)
@@ -101,6 +104,10 @@ function sendOne( theDriver, toSend )
     if( theDriver.wsconn )
     {
         theDriver.wsconn.send( msg );
+    }
+    else
+    {
+        debug( "Error sending: " + toSend )
     }
 }
 

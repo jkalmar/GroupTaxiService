@@ -26,7 +26,9 @@ class Order
         this.id = id;
         this.order = anOrderParams;
         this.accepted = false;
+        this.driverId = 0;
         this.timeout = setTimeout( this.onTimeout.bind( this ), OrderTimeout );
+        this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
         this.state = orderStateNew;
     }
 
@@ -34,6 +36,8 @@ class Order
     {
         debug(`Timeout for order with id: ${this.id}`);
         this.state = orderStateTimeout;
+
+        clearTimeout( this.switchTimeout )
 
         if( ! this.accepted )
         {
@@ -46,11 +50,35 @@ class Order
         }
     }
 
+    onSwitch()
+    {
+        if( ! this.accepted )
+        {
+            drivers.makeOrder( this, this.driverId ).then( value => {
+                debug(value)
+                if( value ){
+                    this.driverId = value;
+                    debug( "Found driver: " + value )
+                }
+                else{
+                    this.driverId = 0;
+                    debug("no driver available")
+                }
+            } ).catch( err => {
+                debug(err)
+            } )
+
+            this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
+        }
+    }
+
     onAccept( driverId, timeEstimate )
     {
         this.accepted = true;
-        this.driverId = driverId;
         clearTimeout( this.timeout );
+        clearTimeout( this.switchTimeout )
+
+        this.driverId = driverId;
 
         if( this.state === orderStateNew )
         {
@@ -110,6 +138,8 @@ function createNewOrder( res, aParam )
             else{
                 debug("no driver available")
             }
+
+            theOrder.driverId = value;
         } ).catch( err => {
             debug(err)
         } )
