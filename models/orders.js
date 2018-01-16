@@ -3,7 +3,7 @@ const debug = require("debug")("backend:orders");
 const drivers = require( "../controllers/websocketDriver" )
 
 const OrderTimeout = 70000
-const OrderSwitchTime = 15000
+const OrderSwitchTime = 12000
 
 const orderStateNew = 1;
 const orderStateTaken = 2;
@@ -19,6 +19,8 @@ const sqlOrderCancel = "UPDATE `orders` SET `state` = " + orderStateCanceled + "
 const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
 const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE `id` = ? limit 1;";
 
+
+// TODO: dohodnut casy a prepinanie medzi vodicmi
 
 class Order
 {
