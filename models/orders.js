@@ -19,6 +19,8 @@ const sqlOrderCancel = "UPDATE `orders` SET `state` = " + orderStateCanceled + "
 const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
 const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE `id` = ? limit 1;";
 
+const sqlOrderCheck = "SELECT `state` FROM `orders` WHERE `id`=?"
+
 
 // TODO: dohodnut casy a prepinanie medzi vodicmi
 
@@ -108,7 +110,7 @@ class Order
     {
         debug( "Order canceled" )
         this.state = orderStateCanceled;
-        db.query( sqlCancelOrder, [ this.id ] ,( err, result, fields ) => {
+        db.query( sqlOrderCancel, [ this.id ] ,( err, result, fields ) => {
             if( err ) debug( err );
         } );
 
@@ -146,7 +148,7 @@ function createNewOrder( res, aParam )
             debug(err)
         } )
 
-        res.json( { "id" : theOrder.id } );
+        res.json( { "id" : theOrder.id, "state" : orderStateNew } );
     } )
 }
 
@@ -157,14 +159,42 @@ function createNewOrder( res, aParam )
  */
 function checkOrder( req, res )
 {
-    if( req.body.orderId )
+    const theId = req.params.id;
+
+    if( theId === undefined )
     {
-        res.sendStatus(200)
+        res.sendStatus( 400 );
+        return;
+    }
+
+    if( orders[ theId ] )
+    {
+        const theOrder = orders[ theId ]
+        const obj = { "id" : theOrder.id, "state" : theOrder.state };
+        res.json( obj );
     }
     else
     {
-        res.sendStatus(400)
+        db.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
+            if( err )
+            {
+                debug( err );
+                res.sendStatus(400);
+            }else
+            {
+                if( result.length > 0 )
+                {
+                    const obj = {"id" : theId, "state" : result[0].state };
+                    res.json( obj );
+                }
+                else
+                {
+                    res.sendStatus(400);
+                }
+            }
+        } );
     }
+
 }
 
 /**
@@ -177,7 +207,7 @@ function checkOrder( req, res )
  */
 function cancelOrder( req, res )
 {
-    const theId = req.body.orderId;
+    const theId = req.params.id;
 
     if( theId )
     {
@@ -185,10 +215,11 @@ function cancelOrder( req, res )
         if( theOrder )
         {
             theOrder.onCancel()
-            res.sendStatus(200)
+            const obj = { "id" : theOrder.id, "state" : theOrder.state };
+            res.json( obj )
         }
         else{
-            res.sendStatus(400)
+            res.sendStatus(409)
         }
     }
     else

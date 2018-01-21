@@ -68,7 +68,7 @@ router.post('/order',( req, res, next ) => {
     orders.createNewOrder( res, req.body );
 });
 
-router.post("/order/:id/cancel", orders.cancelOrder);
+router.get("/order/:id/cancel", orders.cancelOrder);
 
 router.get("/order/:id/check", orders.checkOrder)
 
