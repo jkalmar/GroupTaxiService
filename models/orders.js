@@ -4,6 +4,8 @@ const drivers = require( "../controllers/websocketDriver" )
 
 const OrderTimeout = 70000
 const OrderSwitchTime = 12000
+const OrderDoneTimeout = 30000
+
 
 const orderStateNew = 1;
 const orderStateTaken = 2;
@@ -26,20 +28,19 @@ const sqlOrderCheck = "SELECT `state` FROM `orders` WHERE `id`=?"
 
 class Order
 {
-    constructor( id, anOrderParams ){
-        this.id = id;
-        this.order = anOrderParams;
+    constructor( anOrderParams ){
+        this.params = anOrderParams;
         this.accepted = false;
         this.driverId = 0;
         this.timeout = setTimeout( this.onTimeout.bind( this ), OrderTimeout );
         this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
-        this.state = orderStateNew;
+        this.doneTimeout = 0;
     }
 
     onTimeout()
     {
         debug(`Timeout for order with id: ${this.id}`);
-        this.state = orderStateTimeout;
+        this.params.state = orderStateTimeout;
 
         clearTimeout( this.switchTimeout )
 
@@ -47,8 +48,8 @@ class Order
         {
             // remove this order from the global list of activer orders
             // and mark it as timeout order in DB
-            delete orders[ this.id ]
-            db.query( sqlOrderTimeout, [ this.id ] ,( err, result, fields ) => {
+            delete orders[ this.params.id ]
+            db.query( sqlOrderTimeout, [ this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
         }
@@ -76,19 +77,18 @@ class Order
         }
     }
 
-    onAccept( driverId, timeEstimate )
+    onAccept( driverId, newParams )
     {
-        this.accepted = true;
-        clearTimeout( this.timeout );
-        clearTimeout( this.switchTimeout )
-
-        this.driverId = driverId;
-
-        if( this.state === orderStateNew )
+        if( this.params.state === orderStateNew )
         {
-            this.state = orderStateTaken;
-            this.time = timeEstimate;
-            db.query( sqlTakeOrder, [ this.driverId ,this.id ] ,( err, result, fields ) => {
+            this.accepted = true;
+            this.driverId = driverId;
+            this.params = newParams;
+
+            clearTimeout( this.timeout );
+            clearTimeout( this.switchTimeout )
+
+            db.query( sqlOrderTake, [ this.driverId ,this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -109,12 +109,34 @@ class Order
     onCancel()
     {
         debug( "Order canceled" )
-        this.state = orderStateCanceled;
-        db.query( sqlOrderCancel, [ this.id ] ,( err, result, fields ) => {
+        this.params.state = orderStateCanceled;
+        db.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
             if( err ) debug( err );
         } );
 
-        delete orders[ this.id ]
+        delete orders[ this.params.id ]
+    }
+
+    onDone( newParams )
+    {
+        debug( "onDone" );
+
+        if( this.params.state == orderStateTaken )
+        {
+            this.params = newParams;
+
+            db.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
+                if( err ) debug( err );
+            } );
+
+            this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
+        }
+    }
+
+    onDoneTimeout()
+    {
+        delete orders[ this.params.id ];
+        this.doneTimeout = 0;
     }
 }
 
@@ -131,8 +153,11 @@ function createNewOrder( res, aParam )
         }
 
         const theId = result.insertId;
-        let theOrder = new Order( theId, aParam );
-        orders[ theOrder.id ] = theOrder;
+
+        // create new order and set id
+        aParam.id = theId;
+        let theOrder = new Order( aParam );
+        orders[ theOrder.params.id ] = theOrder;
 
         drivers.makeOrder( theOrder, 0 ).then( value => {
             debug(value)
@@ -148,7 +173,7 @@ function createNewOrder( res, aParam )
             debug(err)
         } )
 
-        res.json( { "id" : theOrder.id, "state" : orderStateNew } );
+        res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
     } )
 }
 
@@ -170,7 +195,7 @@ function checkOrder( req, res )
     if( orders[ theId ] )
     {
         const theOrder = orders[ theId ]
-        const obj = { "id" : theOrder.id, "state" : theOrder.state };
+        const obj = { "id" : theOrder.params.id,  "data" : theOrder.params };
         res.json( obj );
     }
     else
@@ -184,6 +209,7 @@ function checkOrder( req, res )
             {
                 if( result.length > 0 )
                 {
+                    // TODO: Store json to db
                     const obj = {"id" : theId, "state" : result[0].state };
                     res.json( obj );
                 }
@@ -215,7 +241,7 @@ function cancelOrder( req, res )
         if( theOrder )
         {
             theOrder.onCancel()
-            const obj = { "id" : theOrder.id, "state" : theOrder.state };
+            const obj = { "id" : theOrder.params.id, "state" : theOrder.params.state, "data" : theOrder.params };
             res.json( obj )
         }
         else{
@@ -235,19 +261,33 @@ function cancelOrder( req, res )
  * then return true and set driver ID and timeEstimate to order
  *
  * @param {number} orderId
- * @param {number} driverId
- * @param {number} timeEstimate
+ * @param {order} newParams
  */
-function takeOrder( orderId, driverId, timeEstimate )
+function takeOrder( orderId, newParams )
 {
+    debug("Taking order");
     const theOrder = orders[ orderId ];
 
-    if( theOrder ) theOrder.onAccept( driverId, timeEstimate )
+    if( theOrder ) theOrder.onAccept( newParams.taxiId, newParams )
+}
+
+function declineOrder( orderId )
+{
+
+}
+
+function finishOrder( orderParams )
+{
+    const theOrder = orders[ orderParams.id ];
+
+    if( theOrder ) theOrder.onDone( orderParams );
 }
 
 module.exports = {
     createNewOrder,
     checkOrder,
     cancelOrder,
-    takeOrder
+    takeOrder,
+    finishOrder,
+    declineOrder,
 }

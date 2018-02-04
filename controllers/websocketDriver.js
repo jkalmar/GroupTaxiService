@@ -46,10 +46,10 @@ function makeOrder( anOrder, driverId )
                 debug( value )
 
                 const theDriver = drivers[ value[0].id ];
-                const toSend = { "op" : "order", "id" : anOrder.id, "data" : anOrder.order }
+                const toSend = { "op" : "order", "id" : anOrder.params.id, "data" : anOrder.params }
 
-                debug( `Sending order: ${anOrder.id} to drivers` );
-                debug( `Sending order: ${JSON.stringify(anOrder.order)} to drivers` );
+                debug( `Sending order: ${anOrder.params.id} to drivers` );
+                debug( `Sending order: ${JSON.stringify(anOrder.params)} to drivers` );
                 debug( `Driver: ${theDriver.id}` )
 
                 sendOne( theDriver, toSend );
@@ -163,14 +163,6 @@ function getAll( wsclient, userId )
     
 }
 
-function order( userId, msg )
-{
-    const toSend = { "op" : "order", "id" : userId, "data" : { "id" : 25, "from" : { "lat" : 49.8, "lng" : 18.95 }, "to" : { "lat" : 49.7, "lng" : 18.93 } } }
-    
-    sendEach( userId, toSend );
-}
-
-
 function init(server) {
     console.log("Initializing ws server")
 
@@ -264,10 +256,24 @@ function init(server) {
                 locationUpdate( theDriver.id, msg )
             } else if( msg.op == "getAll" ) {
                 getAll( ws, theDriver.id );
-            } else if( msg.op == "order" ) {
-                order( theDriver.id, msg );
             }
+            else if( msg.op == "take" ) {
+                // {"op":"take","id":9,"taxi":"test1","orderId":138} from user 9
+                const orders = require( "../models/orders" )
+                orders.takeOrder( msg.data.id, msg.data );
+            }
+            else if( msg.op == "decline" ) {
+                const orders = require( "../models/orders" )
 
+                debug("--------------> Order declined" + msg);
+            }
+            else if( msg.op == "finish" ) {
+                const orders = require( "../models/orders" )
+
+                debug("--------------> Order finished" + msg);
+
+                orders.finishOrder( msg.data );
+            }
             console.log(`WS message ${message} from user ${theDriver.id}`);
         });
 
