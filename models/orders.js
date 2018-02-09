@@ -77,12 +77,12 @@ class Order
         }
     }
 
-    onAccept( driverId, newParams )
+    onAccept( aDriver, newParams )
     {
         if( this.params.state === orderStateNew )
         {
             this.accepted = true;
-            this.driverId = driverId;
+            this.driverId = aDriver.id;
             this.params = newParams;
 
             clearTimeout( this.timeout );
@@ -92,6 +92,7 @@ class Order
                 if( err ) debug( err );
             } );
 
+            aDriver.send( "order", this.params );
             return true;
         }
         else
@@ -262,13 +263,14 @@ function cancelOrder( req, res )
  *
  * @param {number} orderId
  * @param {order} newParams
+ * @param {Driver} aDriver
  */
-function takeOrder( orderId, newParams )
+function takeOrder( orderId, newParams, aDriver )
 {
     debug("Taking order");
     const theOrder = orders[ orderId ];
 
-    if( theOrder ) theOrder.onAccept( newParams.taxiId, newParams )
+    if( theOrder ) theOrder.onAccept( aDriver, newParams )
 }
 
 function declineOrder( orderId )
@@ -276,7 +278,8 @@ function declineOrder( orderId )
 
 }
 
-function finishOrder( orderParams )
+
+function finishOrder( orderParams, aDriver )
 {
     const theOrder = orders[ orderParams.id ];
 

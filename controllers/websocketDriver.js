@@ -35,6 +35,22 @@ class Driver{
         taxi_drivers.brokenConnection( this.id );
         this.logout();
     }
+
+    /**
+     * Sends msg to driver, msg should be a json object which will be added to "data" key in message
+     * something like: { "id" : id, "op" : op, "data" : msg }
+     * 
+     * @param {string} op
+     * @param {JSON} msg 
+     */
+    send( op, msg )
+    {
+        if( this.wsconn )
+        {
+            const toSend = JSON.stringify( { "id" : this.id, "op" : op, "data" : msg } );
+            this.wsconn.send( toSend );
+        }
+    }
 }
 
 function makeOrder( anOrder, driverId )
@@ -260,7 +276,7 @@ function init(server) {
             else if( msg.op == "take" ) {
                 // {"op":"take","id":9,"taxi":"test1","orderId":138} from user 9
                 const orders = require( "../models/orders" )
-                orders.takeOrder( msg.data.id, msg.data );
+                orders.takeOrder( msg.data.id, msg.data, theDriver );
             }
             else if( msg.op == "decline" ) {
                 const orders = require( "../models/orders" )
@@ -272,7 +288,7 @@ function init(server) {
 
                 debug("--------------> Order finished" + msg);
 
-                orders.finishOrder( msg.data );
+                orders.finishOrder( msg.data, theDriver );
             }
             console.log(`WS message ${message} from user ${theDriver.id}`);
         });
