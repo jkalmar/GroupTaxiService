@@ -2,7 +2,7 @@ const db = require('./database');
 const debug = require("debug")("backend:orders");
 const drivers = require( "../controllers/websocketDriver" )
 
-const OrderTimeout = 70000
+const OrderTimeout = 40000
 const OrderSwitchTime = 12000
 const OrderDoneTimeout = 30000
 
@@ -39,14 +39,14 @@ class Order
 
     onTimeout()
     {
-        debug(`Timeout for order with id: ${this.id}`);
+        debug(`Timeout for order with id: ${this.params.id}`);
         this.params.state = orderStateTimeout;
 
         clearTimeout( this.switchTimeout )
 
         if( ! this.accepted )
         {
-            // remove this order from the global list of activer orders
+            // remove this order from the global list of active orders
             // and mark it as timeout order in DB
             delete orders[ this.params.id ]
             db.query( sqlOrderTimeout, [ this.params.id ] ,( err, result, fields ) => {
@@ -103,8 +103,18 @@ class Order
 
     onDenied( driverId )
     {
-        this.denied = true;
-        clearTimeout( this.timeout );
+        if( this.params.state == orderStateNew ) {
+            if( this.driverId == driverId ) {
+                clearTimeout( this.switchTimeout );
+                this.onSwitch()
+            }
+            else {
+                debug( "WARNING: Driver with id: " + driverId + " wants to denied order for driver: " + this.driverId );
+            }
+        }
+        else {
+            debug( "INFO: Ignoring denying of not new order" );
+        }
     }
 
     onCancel()
@@ -261,21 +271,36 @@ function cancelOrder( req, res )
  * or is not timeouted and if is then return false. If everything is ok
  * then return true and set driver ID and timeEstimate to order
  *
- * @param {number} orderId
  * @param {order} newParams
  * @param {Driver} aDriver
  */
-function takeOrder( orderId, newParams, aDriver )
+function takeOrder( newParams, aDriver )
 {
     debug("Taking order");
-    const theOrder = orders[ orderId ];
+    const theOrder = orders[ newParams.id ];
 
     if( theOrder ) theOrder.onAccept( aDriver, newParams )
 }
 
-function declineOrder( orderId )
-{
 
+/**
+ * Declines this order by some driver
+ * This function check the order and the driver ID, if they match, it will
+ * get next driver for the order and send the order to him
+ * 
+ * @param {Order} orderParams 
+ * @param {Driver} aDriver
+ */
+function declineOrder( orderParams, aDriver )
+{
+    const theOrder = orders[ orderParams.id ];
+
+    if( theOrder ) {
+        theOrder.onDenied( aDriver.id );
+    }
+    else {
+        debug( "WARNING: No order with id: " + orderParams.id + " found in declineOrder" );
+    }
 }
 
 

@@ -276,10 +276,12 @@ function init(server) {
             else if( msg.op == "take" ) {
                 // {"op":"take","id":9,"taxi":"test1","orderId":138} from user 9
                 const orders = require( "../models/orders" )
-                orders.takeOrder( msg.data.id, msg.data, theDriver );
+                orders.takeOrder( msg.data, theDriver );
             }
             else if( msg.op == "decline" ) {
                 const orders = require( "../models/orders" )
+
+                orders.declineOrder( msg.data, theDriver )
 
                 debug("--------------> Order declined" + msg);
             }
