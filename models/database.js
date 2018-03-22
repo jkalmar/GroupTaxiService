@@ -1,4 +1,5 @@
-const mysql      = require('mysql');
+const mysql = require('mysql');
+const debug = require("debug")("backend:database")
 const connection = mysql.createConnection({
   host     : 'localhost',
   user     : 'jkalmar',
@@ -6,21 +7,28 @@ const connection = mysql.createConnection({
   password : 'Qt4.A?I:'
 });
 
-console.log("Preping DB")
+var drivers = new Map(); // Currently logged drivers
+var orders = new Map(); // Current orders in the
+
+debug("Preping DB " + new Date().toISOString() )
 
 const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '0'"
 
 connection.connect(function(err) {
   if (err) {
-    console.error('error connecting: ' + err.stack);
+    debug('Error connecting: ' + err.stack);
     return;
   }
 
-  console.log('connected as id ' + connection.threadId);
+  debug('Connected to DB id: ' + connection.threadId);
 
   connection.query( sqlInitTaxi, [], ( err, res, fields ) =>{
-    console.log("drivers reseted")
+    debug("All drivers logged out and resetted")
   } )
 });
 
-module.exports = connection;
+module.exports = {
+  c : connection,
+  drivers,
+  orders
+}

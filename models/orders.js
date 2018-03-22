@@ -1,19 +1,15 @@
 const db = require('./database');
 const debug = require("debug")("backend:orders");
-const drivers = require( "../controllers/websocketDriver" )
 
-const OrderTimeout = 40000
+const OrderTimeout = 60000
 const OrderSwitchTime = 12000
 const OrderDoneTimeout = 30000
-
 
 const orderStateNew = 1;
 const orderStateTaken = 2;
 const orderStateCanceled = 3;
 const orderStateTimeout = 4;
 const orderStateDone = 5;
-
-var orders = Object.create(null)
 
 const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to` ) VALUES (?,?,? );";
 const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + " WHERE `id` = ? limit 1;";
@@ -23,15 +19,13 @@ const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE
 
 const sqlOrderCheck = "SELECT `state` FROM `orders` WHERE `id`=?"
 
-
-// TODO: dohodnut casy a prepinanie medzi vodicmi
-
 class Order
 {
     constructor( anOrderParams ){
         this.params = anOrderParams;
         this.accepted = false;
         this.driverId = 0;
+        this.driver = null;
         this.timeout = setTimeout( this.onTimeout.bind( this ), OrderTimeout );
         this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
         this.doneTimeout = 0;
@@ -39,7 +33,7 @@ class Order
 
     onTimeout()
     {
-        debug(`Timeout for order with id: ${this.params.id}`);
+        debug(`Timeout for order, id: ${this.params.id}`);
         this.params.state = orderStateTimeout;
 
         clearTimeout( this.switchTimeout )
@@ -48,8 +42,8 @@ class Order
         {
             // remove this order from the global list of active orders
             // and mark it as timeout order in DB
-            delete orders[ this.params.id ]
-            db.query( sqlOrderTimeout, [ this.params.id ] ,( err, result, fields ) => {
+            db.orders.delete( this.params.id )
+            db.c.query( sqlOrderTimeout, [ this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
         }
@@ -82,13 +76,13 @@ class Order
         if( this.params.state === orderStateNew )
         {
             this.accepted = true;
-            this.driverId = aDriver.id;
+            this.driver = aDriver;
             this.params = newParams;
 
             clearTimeout( this.timeout );
             clearTimeout( this.switchTimeout )
 
-            db.query( sqlOrderTake, [ this.driverId ,this.params.id ] ,( err, result, fields ) => {
+            db.c.query( sqlOrderTake, [ this.driverId ,this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -117,15 +111,19 @@ class Order
         }
     }
 
-    onCancel()
+    onCancelUser()
     {
         debug( "Order canceled" )
         this.params.state = orderStateCanceled;
-        db.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
+        db.c.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
             if( err ) debug( err );
         } );
 
-        delete orders[ this.params.id ]
+        db.orders.delete( this.params.id )
+    }
+
+    onCancelDriver() {
+
     }
 
     onDone( newParams )
@@ -136,7 +134,7 @@ class Order
         {
             this.params = newParams;
 
-            db.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
+            db.c.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -146,7 +144,7 @@ class Order
 
     onDoneTimeout()
     {
-        delete orders[ this.params.id ];
+        db.orders.delete( this.params.id )
         this.doneTimeout = 0;
     }
 }
@@ -157,7 +155,7 @@ function createNewOrder( res, aParam )
     debug( "params: " );
     debug( aParam );
 
-    db.query( sqlOrderCreate, [0, "from", "to"], ( err, result, fields ) => {
+    db.c.query( sqlOrderCreate, [0, "from", "to"], ( err, result, fields ) => {
         if( err ) {
             res.sendStatus( 500 );
             return
@@ -168,7 +166,7 @@ function createNewOrder( res, aParam )
         // create new order and set id
         aParam.id = theId;
         let theOrder = new Order( aParam );
-        orders[ theOrder.params.id ] = theOrder;
+        db.orders.set( theOrder.params.id, theOrder )
 
         drivers.makeOrder( theOrder, 0 ).then( value => {
             debug(value)
@@ -203,15 +201,15 @@ function checkOrder( req, res )
         return;
     }
 
-    if( orders[ theId ] )
+    if( db.orders.has( theId ) )
     {
-        const theOrder = orders[ theId ]
+        const theOrder = db.orders.get( theId )
         const obj = { "id" : theOrder.params.id,  "data" : theOrder.params };
         res.json( obj );
     }
     else
     {
-        db.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
+        db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
             if( err )
             {
                 debug( err );
@@ -248,7 +246,7 @@ function cancelOrder( req, res )
 
     if( theId )
     {
-        const theOrder = orders[ theId ];
+        const theOrder = db.orders.get( theId );
         if( theOrder )
         {
             theOrder.onCancel()
@@ -277,7 +275,7 @@ function cancelOrder( req, res )
 function takeOrder( newParams, aDriver )
 {
     debug("Taking order");
-    const theOrder = orders[ newParams.id ];
+    const theOrder = db.orders.get( newParams.id );
 
     if( theOrder ) theOrder.onAccept( aDriver, newParams )
 }
@@ -287,13 +285,13 @@ function takeOrder( newParams, aDriver )
  * Declines this order by some driver
  * This function check the order and the driver ID, if they match, it will
  * get next driver for the order and send the order to him
- * 
- * @param {Order} orderParams 
+ *
+ * @param {Order} orderParams
  * @param {Driver} aDriver
  */
 function declineOrder( orderParams, aDriver )
 {
-    const theOrder = orders[ orderParams.id ];
+    const theOrder = db.orders.get( orderParams.id );
 
     if( theOrder ) {
         theOrder.onDenied( aDriver.id );
@@ -306,7 +304,7 @@ function declineOrder( orderParams, aDriver )
 
 function finishOrder( orderParams, aDriver )
 {
-    const theOrder = orders[ orderParams.id ];
+    const theOrder = db.orders.get( orderParams.id );
 
     if( theOrder ) theOrder.onDone( orderParams );
 }

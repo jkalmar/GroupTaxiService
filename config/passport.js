@@ -3,7 +3,6 @@ const debug = require('debug')('backend:config:passport');
 
 const initialize = (passport) => 
 {
-    //var User = user;
     const LocalStrategy = require('passport-local').Strategy;
     
     passport.use('local-signup', new LocalStrategy(

@@ -1,135 +1,360 @@
+"use strict"
+const EventEmitter = require('events');
 const uuidv4 = require('uuid/v4');
 
 const db = require('./database');
-const debug = require( "debug" )("backend:drivers")
+const debug = require("debug")("backend:drivers")
 
 const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
 const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
 const sqlGetBrokenConn = "SELECT `broken_connections`.id, username, lat, lng FROM `broken_connections` LEFT JOIN `taxi_drivers` ON `broken_connections`.taxiId = `taxi_drivers`.id limit 2000";
 const sqlGetNextLoggedDriver = "SELECT `id`, `username` FROM `taxi_drivers` WHERE `logged`=1 AND `id`>? limit 1"
+const sqlUpdateLatLng = "UPDATE taxi_drivers SET latitude = ?, longitude = ? WHERE id = ? limit 1"
 
-const getTaxis = function()
-{
-    return new Promise( (resolve, reject) => {
-        db.query( sqlGetTaxis, ( err, result, fields ) => {
-            if( err )
-            {
-                reject( err );
+const sqlPutBrokenConn = "INSERT INTO broken_connections (taxiId, lat, lng) VALUES (?, ?, ?)"
+const sqlLogout = "UPDATE taxi_drivers SET `logged` = false WHERE `id` = ? limit 1";
+
+const waitForDriverReConnectionTime = 20000;
+
+class Driver extends EventEmitter {
+
+    /**
+     *
+     * @param {Number} id
+     * @param {WebSocket} ws
+     */
+    constructor(id, ws) {
+        super()
+        this.id = id;
+        this.wsconn = ws;
+        this.isAlive = false;
+        this.timeout = null;
+        this.order = null;
+    }
+
+    logout() {
+        debug("Logging out driver with id: " + this.id);
+
+        db.c.query(sqlLogout, [this.id], (err, result, fields) => {
+            if (err) debug(err);
+        });
+
+        db.drivers.delete( this.id )
+
+        const toSend = { "op" : "byeDriver", "id" : this.id }
+        this.sendEach( JSON.stringify(toSend) )
+    }
+
+    error() {
+        debug("Writing broken connection to db")
+        this.brokenConnection();
+        this.logout();
+    }
+
+    /**
+     * Writes broken connection to DB
+     * The entry will have last known lat and lng, so basically this represent one moment before the
+     * connection broken
+     */
+    brokenConnection() {
+        db.c.query(sqlGetLatLng, [this.id], (err, result, fields) => {
+            if (err) { debug(err); return;}
+
+            const lat = result[0].latitude;
+            const lng = result[0].longitude;
+
+            db.c.query(sqlPutBrokenConn, [this.id, lat, lng], (err, result, fields) => {
+                if (err) { debug(err); return;}
+            })
+        })
+    }
+
+    /**
+     * Checks if the current WS connection on this driver is the currently broken connection.In case
+     * that driver's ws and broken ws are the same then this driver is probably in some situation
+     * without internet. In this situation driver waits for @waitForDriverReConnectionTime ms for
+     * reconnect to happen. The timeout is then checked periodiacally in timeoutCheck function
+     *
+     * @param {WebSocket} c
+     * @returns {Boolean} True if broken connection and driver's ws are the same. false otherwise
+     */
+    broken(c) {
+        if (this.wsconn === c) {
+            debug("Current ws is the broken one, setting timeout")
+            this.timeout = Date.now() + waitForDriverReConnectionTime;
+            this.wsconn = null;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Updates the location of this driver in DB
+     *
+     * @param {JSON} msg
+     */
+    updateLoc( msg ) {
+        db.c.query(sqlUpdateLatLng, [msg.lat, msg.lng, this.id], (err, result, fields) => {
+            if( err ) {
+                debug( err )
+                return;
             }
 
-            resolve( result );
-        } );
-    } );
+            const toSend = { "op": "location", "id": this.id, "data": msg }
+            this.sendEach(JSON.stringify( toSend ));
+        } )
+    }
+
+    /**
+     * Enable or disable panic for this driver
+     * It will then notify all connected drivers that this driver has clicked the panic button
+     *
+     * @param {number} state The state of the panic button - enabled or disabled
+     */
+    panic( msg ) {
+        const toSend = { "op": "panic", "id": this.id, "state": msg.state }
+        this.sendEach(JSON.stringify(toSend));
+        this.send(JSON.stringify(toSend))
+    }
+
+    /**
+     * Makes order to this driver
+     * Called from order module, driver will then listen to switch callback to stop accepting this
+     * order. If driver sends accept or deny aftef switch then it will be sends response that order
+     * has already passed
+     *
+     * @param {Order} theOrder
+     */
+    makeOrder( theOrder ) {
+
+    }
+
+    /**
+     * Get all drivers connected to server
+     * Used to sync the drivers state from server to clients
+     *
+     * @param {JSON} msg
+     */
+    getAll(msg ) {
+        debug("getAll")
+        const toSend = { "op": "allDrivers", "id": this.id }
+
+        db.c.query(sqlGetTaxis, (err, result, fields) => {
+            if (err) toSend.data = [];
+            else toSend.data = result;
+
+            debug( toSend );
+
+            this.send( JSON.stringify( toSend ) );
+        });
+    }
+
+    takeOrder(msg) {
+
+    }
+
+    declineOrder( msg ){
+
+    }
+
+    finishOrder(msg){
+
+    }
+
+    switchOrder(msg) {
+
+    }
+
+    reportOrder(msg) {
+
+    }
+
+
+    /**
+     * Handle incomming msg from either websocket or http
+     * Calls apropriete method on driver
+     *
+     * @param {JSON} msg
+     */
+    handleMsg( msg ) {
+        const func = methodMapping[ msg.op ];
+        if( func ) func.call(this, msg);
+        else {
+            const toSend = { "op": "unknown", "id": this.id }
+            send( JSON.stringify( toSend ) )
+        }
+    }
+
+    /**
+     * Sends msg to driver, msg should be a json object which will be added to "data" key in message
+     * something like: { "id" : id, "op" : op, "data" : msg }
+     *
+     * @param {JSON} msg
+     */
+    send(msg) {
+        if (this.wsconn) this.wsconn.send(msg);
+    }
+
+    sendEach( msg ) {
+        for( var d of db.drivers.values() ){
+            if( d.id === this.id ) continue
+            d.send( msg )
+        }
+    }
+}
+
+var methodMapping = {
+    "update" : Driver.prototype.updateLoc,
+    "panic" : Driver.prototype.panic,
+    "getAll" : Driver.prototype.getAll,
+    "take" : Driver.prototype.takeOrder,
+    "decline" : Driver.prototype.declineOrder,
+    "finish" : Driver.prototype.finishOrder,
+    "switch" : Driver.prototype.switchOrder,
+    "report" : Driver.prototype.reportOrder,
+}
+
+function newDriver(aDriver) {
+    debug("sending update");
+
+    getTaxiById(aDriver.id).then((data) => {
+        const toSend = { "op": "newDriver", "id": aDriver.id, "data": data }
+        aDriver.sendEach(JSON.stringify(toSend));
+    }).catch((err) => {
+        debug(err)
+    })
+}
+
+function makeOrder(anOrder, driverId) {
+    return new Promise((resolve, reject) => {
+        drivers.getNextLogged(driverId).then(value => {
+            if (value.length) {
+                debug(value)
+
+                const theDriver = drivers[value[0].id];
+                const toSend = { "op": "order", "id": anOrder.params.id, "data": anOrder.params }
+
+                debug(`Sending order: ${anOrder.params.id} to drivers`);
+                debug(`Sending order: ${JSON.stringify(anOrder.params)} to drivers`);
+                debug(`Driver: ${theDriver.id}`)
+
+                sendOne(theDriver, toSend);
+
+                resolve(theDriver.id);
+            }
+
+            resolve(0)
+        }).catch(err => {
+            reject(err)
+        })
+    })
+}
+
+const getTaxis = function () {
+    return new Promise((resolve, reject) => {
+        db.c.query(sqlGetTaxis, (err, result, fields) => {
+            if (err) {
+                reject(err);
+            }
+
+            resolve(result);
+        });
+    });
 }
 
 const getTaxiByName = (name) => {
-    return new Promise( (resolve, reject) => {
-        db.query('select * from taxi_drivers where username = ? limit 1000', [name], ( err, result, fields ) => {
-            if( err )
-            {
-                reject( err );
+    return new Promise((resolve, reject) => {
+        db.c.query('select * from taxi_drivers where username = ? limit 1000', [name], (err, result, fields) => {
+            if (err) {
+                reject(err);
             }
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 };
 
-const getTaxiByNamePassword = ( name, password ) => {
-    return new Promise( (resolve, reject ) => {
+const getTaxiByNamePassword = (name, password) => {
+    return new Promise((resolve, reject) => {
         const sql = "select * from taxi_drivers where username = ? and password = ? limit 1";
 
-        db.query( sql, [ name, password ], ( err, result, fields ) => {
-            if( err ) reject( err );
+        db.c.query(sql, [name, password], (err, result, fields) => {
+            if (err) reject(err);
 
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 };
 
-const getTaxiById = ( id ) => {
-    return new Promise( ( resolve, reject ) => {
+const getTaxiById = (id) => {
+    return new Promise((resolve, reject) => {
         const sql = "select * from taxi_drivers where id = ? limit 1";
 
-        db.query( sql, [ id ], ( err, result, fields ) => {
-            if( err ) reject( err );
+        db.c.query(sql, [id], (err, result, fields) => {
+            if (err) reject(err);
 
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 };
 
-const insertTaxi = ( name, password ) => {
-    return new Promise( ( resolve, reject ) => {
+const insertTaxi = (name, password) => {
+    return new Promise((resolve, reject) => {
         const sql = "insert into taxi_drivers (username, password) values (?, ?)";
 
-        db.query( sql, [name, password], (err, result, fields) => {
-            if( err ) { reject( err ) }
+        db.c.query(sql, [name, password], (err, result, fields) => {
+            if (err) { reject(err) }
 
-            resolve( result );
-        } );
-        
-    } );
+            resolve(result);
+        });
+
+    });
 }
 
 const getTaxi = (id) => {
-    return new Promise( (resolve, reject) => {
-        db.query('select * from taxi_drivers where id = ? limit 1000', [id], ( err, result, fields ) => {
-            if( err ) reject( err );
+    return new Promise((resolve, reject) => {
+        db.c.query('select * from taxi_drivers where id = ? limit 1000', [id], (err, result, fields) => {
+            if (err) reject(err);
 
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 }
 
-const updateLocation = (lat, long, id) => {
-    return new Promise( (resolve, reject) => {
-        db.query('update taxi_drivers set latitude = ?, longitude = ? where id = ? limit 1', [lat, long, id], ( err, result, fields ) => {
-            if( err ) reject( err );
-
-            resolve( result );
-        } );
-    } );
-}
-
-const performLogin = ( name, password ) => {
-    return new Promise( ( resolve, reject ) => {
-        db.query( 'select id from taxi_drivers where name = ? and password = ? limit 1', [ name, password ], ( err, result, fields ) => {
-            if( err )
-            {
-                reject( err );
+const performLogin = (name, password) => {
+    return new Promise((resolve, reject) => {
+        db.c.query('select id from taxi_drivers where name = ? and password = ? limit 1', [name, password], (err, result, fields) => {
+            if (err) {
+                reject(err);
             }
 
-            resolve( result );
-        } )
-    } )
+            resolve(result);
+        })
+    })
 }
 
-const performLogout = ( sessionId ) => {
-    
-}
-
-function login( id ){
+function login(id) {
     const sql = "update taxi_drivers set `logged` = true where `id` = ? limit 1";
-    
-    return new Promise( (resolve, reject) => {
-        db.query( sql, [id], ( err, result, fields ) => {
-            if( err ) reject( err );
-    
-            resolve( result );
-        } );
-    } );
-} 
 
-function logout( id ){
+    return new Promise((resolve, reject) => {
+        db.c.query(sql, [id], (err, result, fields) => {
+            if (err) reject(err);
+
+            resolve(result);
+        });
+    });
+}
+
+function logout(id) {
     const sql = "update taxi_drivers set `logged` = false where `id` = ? limit 1";
 
-    return new Promise( (resolve, reject) => {
-        db.query( sql, [id], ( err, result, fields ) => {
-            if( err ) reject( err );
+    return new Promise((resolve, reject) => {
+        db.c.query(sql, [id], (err, result, fields) => {
+            if (err) reject(err);
 
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 }
 
 /**
@@ -138,52 +363,82 @@ function logout( id ){
  *
  * @param {number} driverId id of previous driver
  */
-function getNextLogged( driverId )
-{
-    return new Promise( (resolve, reject) => {
-        db.query( sqlGetNextLoggedDriver, [driverId], ( err, result, fields ) => {
-            if( err ) reject( err );
+function getNextLogged(driverId) {
+    return new Promise((resolve, reject) => {
+        db.c.query(sqlGetNextLoggedDriver, [driverId], (err, result, fields) => {
+            if (err) reject(err);
 
-            resolve( result );
-        } );
-    } );
+            resolve(result);
+        });
+    });
 }
 
-function brokenConnection( id )
-{
-    const sql = "insert into broken_connections (taxiId, lat, lng) values (?, ?, ?)";
-
-    db.query( sqlGetLatLng, [ id ], ( err, result, fields ) => {
-        if( err )
-        {
-            debug( err );
-            return;
-        }
-
-        debug( result )
-
-        const lat = result[0].latitude;
-        const lng = result[0].longitude;
-
-        db.query( sql, [ id, lat, lng ], ( err, result, fields ) => {
-            if( err )
-            {
-                debug( err );
-                return;
-            }
-
-        } )
-    } )
+function getBrokenConnections() {
+    return new Promise((resolve, reject) => {
+        db.c.query(sqlGetBrokenConn, [], (err, result, fields) => {
+            if (err) reject(err);
+            resolve(result);
+        });
+    });
 }
 
-function getBrokenConnections()
+/**
+ * Checks all drivers in cache if someone who is in timeout should be deleted
+ *
+ * @param {number} currentTime
+ */
+function timeoutCheck(currentTime) {
+    let dtd = []; // drivers to delete
+
+    for( var d of db.drivers.values() ){
+        // check if driver has timeout set and if the time has passed for him
+        if (d.timeout && d.timeout < currentTime) dtd.push(d);
+    }
+
+    // remove all drivers that had timeouted
+    dtd.forEach((dd) => {
+        dd.error();
+    })
+
+    return dtd.length
+}
+
+/**
+ * Adds driver to system and set state in DB also check if we already
+ * has a driver and if no then notify others about new login
+ *
+ * @param {number} id
+ * @param {WebSocket} ws
+ * @returns {Driver}
+ */
+function addDriver(id, ws) {
+    debug( `Adding new driver id: ${id}` )
+    let theDriver = db.drivers.get( id );
+
+    if( theDriver ) {
+        // just replace the ws connection on the driver
+        // the timeout function will not remove this driver from db
+        // but the ws module will terminate the hanging connection
+        theDriver.wsconn = ws;
+        theDriver.timeout = null;
+    }else {
+        theDriver = new Driver(id, ws)
+        newDriver(theDriver)
+        db.drivers.set( id, theDriver );
+    }
+
+    return theDriver;
+}
+
+/**
+ * Search the local driver cache and return the driver object if found, or undefined
+ *
+ * @param {number} id
+ * @returns {Driver}
+ */
+function getDriver( id )
 {
-    return new Promise( (resolve, reject) => {
-        db.query( sqlGetBrokenConn, [], ( err, result, fields ) => {
-            if( err ) reject( err );
-            resolve( result );
-        } );
-    } );
+    return db.drivers.get(id)
 }
 
 module.exports = {
@@ -192,11 +447,12 @@ module.exports = {
     getTaxiByNamePassword,
     getTaxiById,
     getTaxis,
-    updateLocation,
     login,
     logout,
     insertTaxi,
-    brokenConnection,
     getBrokenConnections,
-    getNextLogged
+    getNextLogged,
+    addDriver,
+    getDriver,
+    timeoutCheck
 }
