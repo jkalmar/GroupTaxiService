@@ -5,7 +5,7 @@ const uuidv4 = require('uuid/v4');
 const db = require('./database');
 const debug = require("debug")("backend:drivers")
 
-const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver` FROM `taxi_drivers` WHERE `logged`=TRUE"
+const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver`, `active` FROM `taxi_drivers` WHERE `logged`=TRUE"
 const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
 const sqlGetBrokenConn = "SELECT `broken_connections`.id, username, lat, lng FROM `broken_connections` LEFT JOIN `taxi_drivers` ON `broken_connections`.taxiId = `taxi_drivers`.id limit 2000";
 const sqlGetNextLoggedDriver = "SELECT `id`, `username` FROM `taxi_drivers` WHERE `logged`=1 AND `id`>? limit 1"
@@ -14,7 +14,9 @@ const sqlUpdateLatLng = "UPDATE taxi_drivers SET latitude = ?, longitude = ? WHE
 const sqlPutBrokenConn = "INSERT INTO broken_connections (taxiId, lat, lng) VALUES (?, ?, ?)"
 const sqlLogout = "UPDATE taxi_drivers SET `logged` = false WHERE `id` = ? limit 1";
 
-const waitForDriverReConnectionTime = 20000;
+const sqlConnection = "UPDATE taxi_drivers SET `active` = ? WHERE `id` = ? limit 1";
+
+const waitForDriverReConnectionTime = 120000;
 
 class Driver extends EventEmitter {
 
@@ -26,7 +28,7 @@ class Driver extends EventEmitter {
     constructor(id, ws) {
         super()
         this.id = id;
-        this.wsconn = ws;
+        this.setConnection(ws)
         this.isAlive = false;
         this.timeout = null;
         this.order = null;
@@ -82,7 +84,7 @@ class Driver extends EventEmitter {
         if (this.wsconn === c) {
             debug("Current ws is the broken one, setting timeout")
             this.timeout = Date.now() + waitForDriverReConnectionTime;
-            this.wsconn = null;
+            this.setConnection(null);
             return true;
         }
 
@@ -127,7 +129,25 @@ class Driver extends EventEmitter {
      * @param {Order} theOrder
      */
     makeOrder( theOrder ) {
+        if( this.order ) {
+            debug(`Driver: ${this.id} already has an order: ${this.order.params.id}`)
+            return;
+        }
 
+        this.order = theOrder;
+
+        // send it to the driver
+        const toSend = { "id" : this.id, "op" : "order", "data" : this.order.params };
+        this.send( JSON.stringify(toSend));
+    }
+
+
+    /**
+     *
+     * @param {Order} theOrder
+     */
+    removeOrder( theOrder ) {
+        if(this.order && (this.order.id === theOrder.id)) this.order = null;
     }
 
     /**
@@ -151,15 +171,41 @@ class Driver extends EventEmitter {
     }
 
     takeOrder(msg) {
+        debug(`Taking order: ${msg.data.id} by driver: ${this.id}`)
+
+        if( this.order && (this.order.params.id === msg.data.id) ) {
+            if(this.order.accept(this, msg.data)) {
+                this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
+            }
+            return
+        }
+        // else
+        // send operation unsuccessfull to driver
 
     }
 
     declineOrder( msg ){
+        debug(`Declining order: ${msg.data.id} by driver: ${this.id}`)
 
+        if( this.order && this.order.params.id === msg.data.id ) {
+            this.order.cancelDriver(this);
+            this.order = null;
+            return
+        }
+        // else
+        // send operation unsuccessfull to driver
     }
 
     finishOrder(msg){
+        debug(`Finishing order: ${msg.data.id} by driver: ${this.id}`)
 
+        if( this.order && this.order.params.id === msg.data.id ) {
+            this.order.done(this, msg.data);
+            this.order = null;
+            return
+        }
+        // else
+        // send operation unsuccessfull to driver
     }
 
     switchOrder(msg) {
@@ -167,9 +213,22 @@ class Driver extends EventEmitter {
     }
 
     reportOrder(msg) {
+        debug(`Reporting order: ${msg.data.id} by driver: ${this.id}`)
 
+        if( this.order && this.order.params.id === msg.data.id ) {
+            this.order.report(this);
+            return
+        }
     }
 
+    // callbacks from Order
+
+
+    orderCanceled( anOrder )
+    {
+        this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : anOrder.params}))
+        this.order = null;
+    }
 
     /**
      * Handle incomming msg from either websocket or http
@@ -202,6 +261,33 @@ class Driver extends EventEmitter {
             d.send( msg )
         }
     }
+
+    /**
+     * Checks if this driver has any connection, if not then this driver is considered as
+     * broken one and he/she should be grey in the map
+     *
+     * @returns {Boolean} true if driver does not have any connection
+     */
+    isBroken() {
+        return this.wsconn === null;
+    }
+
+    /**
+     * Sets the ws connection on this driver and put it also to DB
+     * Driver is active only if he/she has a connection, otherwise he/she is
+     * not active
+     *
+     * @param {WebSocket} aConn A ws connection or null
+     */
+    setConnection(aConn) {
+        // TODO:    Optimize, check if driver has a connection and if yes then
+        //          dont write the same twice to DB
+        db.c.query(sqlConnection, [ ( aConn == null ? false : true ), this.id], (err, result, fields) => {
+            if (err) { debug(err); return;}
+        })
+
+        this.wsconn = aConn;
+    }
 }
 
 var methodMapping = {
@@ -223,31 +309,6 @@ function newDriver(aDriver) {
         aDriver.sendEach(JSON.stringify(toSend));
     }).catch((err) => {
         debug(err)
-    })
-}
-
-function makeOrder(anOrder, driverId) {
-    return new Promise((resolve, reject) => {
-        drivers.getNextLogged(driverId).then(value => {
-            if (value.length) {
-                debug(value)
-
-                const theDriver = drivers[value[0].id];
-                const toSend = { "op": "order", "id": anOrder.params.id, "data": anOrder.params }
-
-                debug(`Sending order: ${anOrder.params.id} to drivers`);
-                debug(`Sending order: ${JSON.stringify(anOrder.params)} to drivers`);
-                debug(`Driver: ${theDriver.id}`)
-
-                sendOne(theDriver, toSend);
-
-                resolve(theDriver.id);
-            }
-
-            resolve(0)
-        }).catch(err => {
-            reject(err)
-        })
     })
 }
 
@@ -419,7 +480,7 @@ function addDriver(id, ws) {
         // just replace the ws connection on the driver
         // the timeout function will not remove this driver from db
         // but the ws module will terminate the hanging connection
-        theDriver.wsconn = ws;
+        theDriver.setConnection(ws)
         theDriver.timeout = null;
     }else {
         theDriver = new Driver(id, ws)

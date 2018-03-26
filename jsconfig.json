@@ -1,7 +1,13 @@
 {
     "compilerOptions": {
-        "target": "ES6"
+        "target": "ES6",
+        "allowSyntheticDefaultImports": true
     },
+    "include": [
+        "models/*",
+        "controllers/*",
+        "public/*"
+    ],
     "exclude": [
         "node_modules",
         "**/node_modules/*"

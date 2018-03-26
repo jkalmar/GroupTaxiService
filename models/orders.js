@@ -19,6 +19,11 @@ const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE
 
 const sqlOrderCheck = "SELECT `state` FROM `orders` WHERE `id`=?"
 
+/**
+ * @class
+ * @alias orders:Order
+ *
+ */
 class Order
 {
     constructor( anOrderParams ){
@@ -26,6 +31,7 @@ class Order
         this.accepted = false;
         this.driverId = 0;
         this.driver = null;
+        this.driverIterator = null;
         this.timeout = setTimeout( this.onTimeout.bind( this ), OrderTimeout );
         this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
         this.doneTimeout = 0;
@@ -53,26 +59,50 @@ class Order
     {
         if( ! this.accepted )
         {
-            drivers.makeOrder( this, this.driverId ).then( value => {
-                debug(value)
-                if( value ){
-                    this.driverId = value;
-                    debug( "Found driver: " + value )
-                }
-                else{
-                    this.driverId = 0;
-                    debug("no driver available")
-                }
-            } ).catch( err => {
-                debug(err)
-            } )
+            // remove from old driver
+            if( this.driver ) this.driver.removeOrder( this );
 
-            this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
+            var { value : val, done : tf } = this.driverIterator.next();
+
+            while( !tf ) {
+                const theDriver = val[1];
+
+                if(theDriver.order === null)
+                {
+                    this.driverId = val[0];
+                    this.driver = theDriver;
+
+                    this.driver.makeOrder( this );
+
+                    clearTimeout( this.switchTimeout );
+                    this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime );
+                    break;
+                }
+
+                var { value : val, done : tf } = this.driverIterator.next();
+            }
+
+            if( tf ) {
+                this.driverId = null;
+                this.driver = null;
+                return;
+            }
         }
     }
 
-    onAccept( aDriver, newParams )
+    /**
+     * Takes the order by a one driver
+     * This function should check if order is not taken by some other driver
+     * or is not timeouted and if is then return false. If everything is ok
+     * then return true and set driver ID and timeEstimate to order
+     *
+     * @param {order} newParams
+     * @param {Driver} aDriver
+     */
+    accept( aDriver, newParams )
     {
+        debug(`Driver: ${aDriver.id} has taken the order: ${this.params.id}`)
+
         if( this.params.state === orderStateNew )
         {
             this.accepted = true;
@@ -82,11 +112,13 @@ class Order
             clearTimeout( this.timeout );
             clearTimeout( this.switchTimeout )
 
-            db.c.query( sqlOrderTake, [ this.driverId ,this.params.id ] ,( err, result, fields ) => {
+            db.c.query( sqlOrderTake, [ this.driver.id ,this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
-            aDriver.send( "order", this.params );
+            // move to driver class
+            debug(`Order: ${this.params.id} accepted`)
+            debug(JSON.stringify(this.params))
             return true;
         }
         else
@@ -95,15 +127,24 @@ class Order
         }
     }
 
-    onDenied( driverId )
+    /**
+     * Decline this order by a driver.
+     * Called when driver decline his/her order. This order has to be in orderStateNew
+     * otherwise it will not be handled
+     *
+     * @param {Driver} aDriver
+     */
+    deny( aDriver )
     {
-        if( this.params.state == orderStateNew ) {
-            if( this.driverId == driverId ) {
+        debug(`Denying order ${this.params.id}`)
+
+        if( this.params.state === orderStateNew ) {
+            if( this.driver === aDriver ) {
                 clearTimeout( this.switchTimeout );
                 this.onSwitch()
             }
             else {
-                debug( "WARNING: Driver with id: " + driverId + " wants to denied order for driver: " + this.driverId );
+                debug( "WARNING: Driver with id: " + aDriver.id + " wants to denied order for driver: " + this.driverId );
             }
         }
         else {
@@ -111,7 +152,11 @@ class Order
         }
     }
 
-    onCancelUser()
+    /**
+     * Cancels this order by a user
+     * This is called by a user if he/she decides to cancel this order
+     */
+    cancelUser()
     {
         debug( "Order canceled" )
         this.params.state = orderStateCanceled;
@@ -119,41 +164,82 @@ class Order
             if( err ) debug( err );
         } );
 
+        if(this.driver) {
+            this.driver.orderCanceled(this);
+        }
+
         db.orders.delete( this.params.id )
     }
 
-    onCancelDriver() {
-
-    }
-
-    onDone( newParams )
-    {
-        debug( "onDone" );
-
-        if( this.params.state == orderStateTaken )
-        {
-            this.params = newParams;
-
-            db.c.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
+    /**
+     * Cancels this order by a driver
+     * This is called from a driver if he/she decides to cancel this order and not to switch
+     * it to someone else
+     *
+     * @param {Driver} aDriver
+     */
+    cancelDriver( aDriver ) {
+        if( this.params.state === orderStateTaken ) {
+            debug(`Canceling order ${this.params.id}`)
+            this.params.state = orderStateCanceled;
+            db.c.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
             this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
+        } else {
+            this.deny(aDriver);
         }
+
     }
 
+    /**
+     * Finish this order by driver.
+     * This is called be a driver when the order is done. It marks this order as finish, write
+     * that to DB and remove this order from local orders cache
+     *
+     * @param {Order} newParams
+     * @returns {Boolean} true if order was successfully finished false otherwise
+     */
+    done(aDriver, newParams)
+    {
+        // only alredy taken orders can be finished
+        if( this.params.state == orderStateTaken ) {
+            debug(`Order: ${this.params.id} has been finished by driver ${aDriver.id}`)
+            this.params = newParams;
+
+            db.c.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
+                if( err ) debug( err );
+
+                this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
+            } );
+
+            return true;
+        }
+        // else
+        return false;
+    }
+
+    /**
+     * Timeout to delete order from local cache
+     * Called from done timer after order has been marked as finished
+     */
     onDoneTimeout()
     {
         db.orders.delete( this.params.id )
         this.doneTimeout = 0;
+    }
+
+    report(aDriver) {
+        debug(`Order: ${this.params.id} reported by driver: ${aDriver.id}`);
+        this.cancelDriver(aDriver);
     }
 }
 
 function createNewOrder( res, aParam )
 {
     debug( "Creating new order" );
-    debug( "params: " );
-    debug( aParam );
+    debug( `params: ${JSON.stringify(aParam)}` );
 
     db.c.query( sqlOrderCreate, [0, "from", "to"], ( err, result, fields ) => {
         if( err ) {
@@ -161,26 +247,13 @@ function createNewOrder( res, aParam )
             return
         }
 
-        const theId = result.insertId;
-
         // create new order and set id
-        aParam.id = theId;
+        aParam.id = Number(result.insertId);
         let theOrder = new Order( aParam );
         db.orders.set( theOrder.params.id, theOrder )
 
-        drivers.makeOrder( theOrder, 0 ).then( value => {
-            debug(value)
-            if( value ){
-                debug("all ok")
-            }
-            else{
-                debug("no driver available")
-            }
-
-            theOrder.driverId = value;
-        } ).catch( err => {
-            debug(err)
-        } )
+        theOrder.driverIterator = db.drivers[Symbol.iterator]();
+        theOrder.onSwitch();
 
         res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
     } )
@@ -193,7 +266,7 @@ function createNewOrder( res, aParam )
  */
 function checkOrder( req, res )
 {
-    const theId = req.params.id;
+    let theId = req.params.id;
 
     if( theId === undefined )
     {
@@ -201,8 +274,11 @@ function checkOrder( req, res )
         return;
     }
 
+    theId = Number(theId)
+
     if( db.orders.has( theId ) )
     {
+        debug("Sending state of order")
         const theOrder = db.orders.get( theId )
         const obj = { "id" : theOrder.params.id,  "data" : theOrder.params };
         res.json( obj );
@@ -210,26 +286,18 @@ function checkOrder( req, res )
     else
     {
         db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
-            if( err )
-            {
+            if( err ) {
                 debug( err );
                 res.sendStatus(400);
-            }else
-            {
-                if( result.length > 0 )
-                {
-                    // TODO: Store json to db
-                    const obj = {"id" : theId, "state" : result[0].state };
-                    res.json( obj );
-                }
-                else
-                {
-                    res.sendStatus(400);
-                }
+            } else if ( result.length > 0 ) {
+                debug("Sending state of order from DB")
+                const obj = {"id" : theId, "data" : { "state" : result[0].state } };
+                res.json( obj );
+            } else {
+                res.sendStatus(400);
             }
         } );
     }
-
 }
 
 /**
@@ -242,14 +310,15 @@ function checkOrder( req, res )
  */
 function cancelOrder( req, res )
 {
-    const theId = req.params.id;
+    let theId = req.params.id;
 
     if( theId )
     {
+        theId = Number(theId)
         const theOrder = db.orders.get( theId );
         if( theOrder )
         {
-            theOrder.onCancel()
+            theOrder.cancelUser()
             const obj = { "id" : theOrder.params.id, "state" : theOrder.params.state, "data" : theOrder.params };
             res.json( obj )
         }
@@ -263,57 +332,8 @@ function cancelOrder( req, res )
     }
 }
 
-/**
- * Takes the order by a one driver
- * This function should check if order is not taken by some other driver
- * or is not timeouted and if is then return false. If everything is ok
- * then return true and set driver ID and timeEstimate to order
- *
- * @param {order} newParams
- * @param {Driver} aDriver
- */
-function takeOrder( newParams, aDriver )
-{
-    debug("Taking order");
-    const theOrder = db.orders.get( newParams.id );
-
-    if( theOrder ) theOrder.onAccept( aDriver, newParams )
-}
-
-
-/**
- * Declines this order by some driver
- * This function check the order and the driver ID, if they match, it will
- * get next driver for the order and send the order to him
- *
- * @param {Order} orderParams
- * @param {Driver} aDriver
- */
-function declineOrder( orderParams, aDriver )
-{
-    const theOrder = db.orders.get( orderParams.id );
-
-    if( theOrder ) {
-        theOrder.onDenied( aDriver.id );
-    }
-    else {
-        debug( "WARNING: No order with id: " + orderParams.id + " found in declineOrder" );
-    }
-}
-
-
-function finishOrder( orderParams, aDriver )
-{
-    const theOrder = db.orders.get( orderParams.id );
-
-    if( theOrder ) theOrder.onDone( orderParams );
-}
-
 module.exports = {
     createNewOrder,
     checkOrder,
     cancelOrder,
-    takeOrder,
-    finishOrder,
-    declineOrder,
 }

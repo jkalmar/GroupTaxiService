@@ -8,6 +8,14 @@ const connection = mysql.createConnection({
 });
 
 var drivers = new Map(); // Currently logged drivers
+
+/**
+ * @typedef {module:./orders:Order} O
+ */
+
+/**
+ * @type {Map<Number, O>}
+ */
 var orders = new Map(); // Current orders in the
 
 debug("Preping DB " + new Date().toISOString() )
@@ -30,5 +38,5 @@ connection.connect(function(err) {
 module.exports = {
   c : connection,
   drivers,
-  orders
+  orders,
 }

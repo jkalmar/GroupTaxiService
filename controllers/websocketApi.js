@@ -116,7 +116,7 @@ class WSserver
     handleNewConnection( ws, req )
     {
         // create new Driver object
-        const theDriver = drivers.addDriver( req.session.passport.user, ws );
+        const theDriver = drivers.addDriver( Number(req.session.passport.user), ws );
 
         setDefaultsOnWs( theDriver, req, ws );
 
@@ -139,7 +139,7 @@ class WSserver
         {
             if( c.isAlive === false ){
                 debug( `Found broken connection. User: ${ c.driver.id }` );
-                c.driver.broken( c );
+                // terminate will close this connection and close callback will be called
                 return c.terminate();
             }
 
