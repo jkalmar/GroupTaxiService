@@ -11,13 +11,13 @@ const orderStateCanceled = 3;
 const orderStateTimeout = 4;
 const orderStateDone = 5;
 
-const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to` ) VALUES (?,?,? );";
-const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + " WHERE `id` = ? limit 1;";
-const sqlOrderCancel = "UPDATE `orders` SET `state` = " + orderStateCanceled + " WHERE `id` = ? limit 1;";
-const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
-const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE `id` = ? limit 1;";
+const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to`, `params` ) VALUES (?,?,?,? );";
+const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + ", `params` = ? WHERE `id` = ? limit 1;";
+const sqlOrderCancel = "UPDATE `orders` SET `state` = " + orderStateCanceled + ", `params` = ? WHERE `id` = ? limit 1;";
+const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + ", `params` = ? WHERE `id` = ? limit 1;";
+const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + ", `params` = ? WHERE `id` = ? limit 1;";
 
-const sqlOrderCheck = "SELECT `state` FROM `orders` WHERE `id`=?"
+const sqlOrderCheck = "SELECT `state`, `params` FROM `orders` WHERE `id`=?"
 
 /**
  * @class
@@ -39,19 +39,21 @@ class Order
 
     onTimeout()
     {
-        debug(`Timeout for order, id: ${this.params.id}`);
-        this.params.state = orderStateTimeout;
-
-        clearTimeout( this.switchTimeout )
-
         if( ! this.accepted )
         {
+            debug(`Timeout for order, id: ${this.params.id}`);
+            this.params.state = orderStateTimeout;
+            const paramStr = JSON.stringify(this.params)
+
+            clearTimeout( this.switchTimeout )
             // remove this order from the global list of active orders
             // and mark it as timeout order in DB
             db.orders.delete( this.params.id )
-            db.c.query( sqlOrderTimeout, [ this.params.id ] ,( err, result, fields ) => {
+            db.c.query( sqlOrderTimeout, [ paramStr,this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
+        } else {
+            debug( `ERROR: Order ${this.params.id}  has been taken but timeout was not deleted` )
         }
     }
 
@@ -101,6 +103,8 @@ class Order
      */
     accept( aDriver, newParams )
     {
+        const paramStr = JSON.stringify(newParams);
+
         debug(`Driver: ${aDriver.id} has taken the order: ${this.params.id}`)
 
         if( this.params.state === orderStateNew )
@@ -112,7 +116,7 @@ class Order
             clearTimeout( this.timeout );
             clearTimeout( this.switchTimeout )
 
-            db.c.query( sqlOrderTake, [ this.driver.id ,this.params.id ] ,( err, result, fields ) => {
+            db.c.query( sqlOrderTake, [ this.driver.id, paramStr, this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -160,7 +164,8 @@ class Order
     {
         debug( "Order canceled" )
         this.params.state = orderStateCanceled;
-        db.c.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
+        const paramsStr = JSON.stringify(this.params)
+        db.c.query( sqlOrderCancel, [paramsStr, this.params.id] ,( err, result, fields ) => {
             if( err ) debug( err );
         } );
 
@@ -182,7 +187,8 @@ class Order
         if( this.params.state === orderStateTaken ) {
             debug(`Canceling order ${this.params.id}`)
             this.params.state = orderStateCanceled;
-            db.c.query( sqlOrderCancel, [ this.params.id ] ,( err, result, fields ) => {
+            const paramsStr = JSON.stringify(this.params)
+            db.c.query( sqlOrderCancel, [ paramsStr, this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -207,8 +213,9 @@ class Order
         if( this.params.state == orderStateTaken ) {
             debug(`Order: ${this.params.id} has been finished by driver ${aDriver.id}`)
             this.params = newParams;
+            const paramStr = JSON.stringify(this.params)
 
-            db.c.query( sqlOrderDone, [ this.params.id ], ( err, resuld, fields ) => {
+            db.c.query( sqlOrderDone, [ paramStr, this.params.id ], ( err, resuld, fields ) => {
                 if( err ) debug( err );
 
                 this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
@@ -238,10 +245,11 @@ class Order
 
 function createNewOrder( res, aParam )
 {
+    const paramsStr = JSON.stringify(aParam);
     debug( "Creating new order" );
-    debug( `params: ${JSON.stringify(aParam)}` );
+    debug( `params: ${paramsStr}` );
 
-    db.c.query( sqlOrderCreate, [0, "from", "to"], ( err, result, fields ) => {
+    db.c.query( sqlOrderCreate, [0, "from", "to", paramsStr], ( err, result, fields ) => {
         if( err ) {
             res.sendStatus( 500 );
             return
@@ -279,8 +287,8 @@ function checkOrder( req, res )
     if( db.orders.has( theId ) )
     {
         debug("Sending state of order")
-        const theOrder = db.orders.get( theId )
-        const obj = { "id" : theOrder.params.id,  "data" : theOrder.params };
+        const theOrd = db.orders.get( theId )
+        const obj = { "id" : theOrd.params.id,  "data" : theOrd.params };
         res.json( obj );
     }
     else
@@ -291,8 +299,8 @@ function checkOrder( req, res )
                 res.sendStatus(400);
             } else if ( result.length > 0 ) {
                 debug("Sending state of order from DB")
-                const obj = {"id" : theId, "data" : { "state" : result[0].state } };
-                res.json( obj );
+                res.setHeader('Content-Type', 'application/json');
+                res.send(`{"id": ${theId}, "data": ${result[0].params}}`);
             } else {
                 res.sendStatus(400);
             }
@@ -302,7 +310,7 @@ function checkOrder( req, res )
 
 /**
  * Called from customer to indicate that he/she/it canceled the order
- * it sends back 200 OK on success or 500 Error on some error, in case of error the user should
+ * it sends back 200 OK on success or 409 Error on some error, in case of error the user should
  * repeat his request
  *
  * @param {express.req} req

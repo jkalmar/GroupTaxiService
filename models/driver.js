@@ -85,6 +85,10 @@ class Driver extends EventEmitter {
             debug("Current ws is the broken one, setting timeout")
             this.timeout = Date.now() + waitForDriverReConnectionTime;
             this.setConnection(null);
+
+            const toSend = { "op": "broken", "id": this.id }
+            this.sendEach(JSON.stringify( toSend ));
+
             return true;
         }
 
@@ -163,9 +167,6 @@ class Driver extends EventEmitter {
         db.c.query(sqlGetTaxis, (err, result, fields) => {
             if (err) toSend.data = [];
             else toSend.data = result;
-
-            debug( toSend );
-
             this.send( JSON.stringify( toSend ) );
         });
     }
@@ -181,7 +182,6 @@ class Driver extends EventEmitter {
         }
         // else
         // send operation unsuccessfull to driver
-
     }
 
     declineOrder( msg ){
@@ -221,9 +221,13 @@ class Driver extends EventEmitter {
         }
     }
 
-    // callbacks from Order
-
-
+    // -------------------- callbacks from Order -----------------------
+    /**
+     * Cancels the order on driver
+     * Sends new order operation to driver with order sets to cancelled
+     *
+     * @param {Order} anOrder The order to cancel
+     */
     orderCanceled( anOrder )
     {
         this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : anOrder.params}))
