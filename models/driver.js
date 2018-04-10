@@ -32,6 +32,7 @@ class Driver extends EventEmitter {
         this.isAlive = false;
         this.timeout = null;
         this.order = null;
+        this.username = "NaN"
     }
 
     logout() {
@@ -43,7 +44,7 @@ class Driver extends EventEmitter {
 
         db.drivers.delete( this.id )
 
-        const toSend = { "op" : "byeDriver", "id" : this.id }
+        const toSend = { "op" : "byeDriver", "id" : this.id, "username" : this.username }
         this.sendEach( JSON.stringify(toSend) )
     }
 
@@ -86,7 +87,7 @@ class Driver extends EventEmitter {
             this.timeout = Date.now() + waitForDriverReConnectionTime;
             this.setConnection(null);
 
-            const toSend = { "op": "broken", "id": this.id }
+            const toSend = { "op": "broken", "id": this.id, "username" : this.username }
             this.sendEach(JSON.stringify( toSend ));
 
             return true;
@@ -107,7 +108,7 @@ class Driver extends EventEmitter {
                 return;
             }
 
-            const toSend = { "op": "location", "id": this.id, "data": msg }
+            const toSend = { "op": "location", "id": this.id, "username" : this.username, "data": msg }
             this.sendEach(JSON.stringify( toSend ));
         } )
     }
@@ -119,7 +120,7 @@ class Driver extends EventEmitter {
      * @param {number} state The state of the panic button - enabled or disabled
      */
     panic( msg ) {
-        const toSend = { "op": "panic", "id": this.id, "state": msg.state }
+        const toSend = { "op": "panic", "id": this.id, "username" : this.username, "state": msg.state }
         this.sendEach(JSON.stringify(toSend));
         this.send(JSON.stringify(toSend))
     }
@@ -310,6 +311,7 @@ function newDriver(aDriver) {
 
     getTaxiById(aDriver.id).then((data) => {
         const toSend = { "op": "newDriver", "id": aDriver.id, "data": data }
+        aDriver.username = data.username;
         aDriver.sendEach(JSON.stringify(toSend));
     }).catch((err) => {
         debug(err)
