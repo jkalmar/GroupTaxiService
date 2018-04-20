@@ -218,7 +218,11 @@ class Driver extends EventEmitter {
 
         if( this.order && this.order.params.id === msg.data.id ) {
             this.order.report(this);
+            this.orderCanceled( this.order )
             return
+        }
+        else {
+            debug( "Trying to report order that is not handled by this driver: " + this.id )
         }
     }
 

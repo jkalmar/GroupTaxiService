@@ -239,6 +239,7 @@ class Order
 
     report(aDriver) {
         debug(`Order: ${this.params.id} reported by driver: ${aDriver.id}`);
+        debug(`Ids: sim: ${this.params.simSerial} device: ${this.params.deviceSerial}`);
         this.cancelDriver(aDriver);
     }
 }
