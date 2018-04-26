@@ -10,6 +10,8 @@ const taxi_drivers = require('../models/driver');
 
 const trouble = require('../models/trouble');
 const orders = require( "../models/orders" )
+const blacklist = require( "../models/blacklist" )
+
 
 router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
@@ -119,18 +121,25 @@ router.post('/blacklist', auth.isLoggedIn, function( req, res, next ){
  * Get all blacklisted users
  * Send all blacklisted users to driver
  */
-router.get('/blacklist', ( req, res, next ) => {
-    res.send( "blacklist" );
+router.get('/blacklist', auth.isLoggedIn, ( req, res, next ) => {
+    blacklist.getAll().then( value => {
+        res.json( { data : value } );
+    } ).catch( err => {
+        res.sendStatus(500);
+    } )
 });
-
 
 /**
  * Deletes blacklisted user from blacklist
  * User can now make orders, json send to server is generater from GET /blacklist and from those
  * information about user so he/she can be removed from DB
  */
-router.delete('/blacklist',auth.isLoggedIn, function( req, res, next ) {
-
+router.delete('/blacklist/:id',auth.isLoggedIn, function( req, res, next ) {
+    blacklist.deleteItem( req.params.id ).then( value => {
+        res.sendStatus(200);
+    } ).catch( err => {
+        res.sendStatus(500);
+    } )
 });
 
 /**
@@ -169,7 +178,7 @@ router.post( "/issue", function( req, res, next )
         debug( "Sending 500" );
         debug( err);
         res.sendStatus( 500 );
-    } )   
+    } )
 } )
 
 router.get( "/issues", function( req, res, next )
@@ -212,7 +221,7 @@ router.get('/users/:id', function(req, res, next) {
 /*
 router.post( '/api/add', function( req, res )
 {
-    data.push( req.body ); 
+    data.push( req.body );
 
     console.log( req.body );
 
