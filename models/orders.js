@@ -1,5 +1,6 @@
 const db = require('./database');
 const debug = require("debug")("backend:orders");
+const blacklist = require("./blacklist")
 
 const OrderTimeout = 60000
 const OrderSwitchTime = 12000
@@ -237,9 +238,25 @@ class Order
         this.doneTimeout = 0;
     }
 
-    report(aDriver) {
+    /**
+     * Reports this order to DB, store info like sim and device IDs and comment about the
+     * incident
+     *
+     * @param {Driver} aDriver
+     * @param {String} aComment
+     */
+    report(aDriver, aComment) {
         debug(`Order: ${this.params.id} reported by driver: ${aDriver.id}`);
         debug(`Ids: sim: ${this.params.simSerial} device: ${this.params.deviceSerial}`);
+
+        const reportData = {
+            simSerial : this.params.simSerial,
+            deviceSerial : this.params.deviceSerial,
+            driver : aDriver.id,
+            comment : aComment
+        }
+
+        blacklist.insertNew( reportData );
         this.cancelDriver(aDriver);
     }
 }
@@ -256,15 +273,25 @@ function createNewOrder( res, aParam )
             return
         }
 
-        // create new order and set id
-        aParam.id = Number(result.insertId);
-        let theOrder = new Order( aParam );
-        db.orders.set( theOrder.params.id, theOrder )
+        blacklist.checkOrder( aParam.simSerial, aParam.deviceSerial ).then( value => {
+            // create new order and set id
+            aParam.id = Number(result.insertId);
 
-        theOrder.driverIterator = db.drivers[Symbol.iterator]();
-        theOrder.onSwitch();
+            aParam.isBlacklisted = false;
+            if( value.length > 0 ) aParam.isBlacklisted = true;
 
-        res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
+            let theOrder = new Order( aParam );
+            db.orders.set( theOrder.params.id, theOrder )
+
+            theOrder.driverIterator = db.drivers[Symbol.iterator]();
+            theOrder.onSwitch();
+
+            res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
+        } ).catch( error => {
+            res.sendStatus( 500 )
+        } )
+
+
     } )
 }
 
