@@ -45,6 +45,7 @@ class Driver extends EventEmitter {
         db.drivers.delete( this.id )
 
         const toSend = { "op" : "byeDriver", "id" : this.id, "username" : this.username }
+        debug( "sending: " + JSON.stringify( toSend ) );
         this.sendEach( JSON.stringify(toSend) )
     }
 
@@ -315,7 +316,8 @@ function newDriver(aDriver) {
 
     getTaxiById(aDriver.id).then((data) => {
         const toSend = { "op": "newDriver", "id": aDriver.id, "data": data }
-        aDriver.username = data.username;
+        aDriver.username = data[0].username;
+        debug( "New driver: " + aDriver.username  );
         aDriver.sendEach(JSON.stringify(toSend));
     }).catch((err) => {
         debug(err)
