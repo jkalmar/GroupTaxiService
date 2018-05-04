@@ -1,10 +1,10 @@
 const driver = require( '../models/driver' );
 const debug = require('debug')('backend:config:passport');
 
-const initialize = (passport) => 
+const initialize = (passport) =>
 {
     const LocalStrategy = require('passport-local').Strategy;
-    
+
     passport.use('local-signup', new LocalStrategy(
         {
             usernameField: 'username',
@@ -13,7 +13,7 @@ const initialize = (passport) =>
         },
         function(req, username, password, done) {
             driver.getTaxiByName( username ).then( (result) =>{
-                
+
                 // there already exist a driver with given username
                 // just call the done method and pass false to it
                 if( result.length > 0 )
@@ -28,7 +28,7 @@ const initialize = (passport) =>
                     // call the done with my last ID that we will serialize into the session
                     // this ID will be used in future requests to load/update driver in DB
                     return done( null, result.insertId, { message : "User succesfully added to DB" } );
-                    
+
                 } ).catch( ( value ) => {
                     done( value, null, { message : "Error happened" } );
                 } );
@@ -58,6 +58,7 @@ passport.use('local-signin', new LocalStrategy(
             }
             else
             {
+                debug(`Bad username: ${username}, password: ${password}`)
                 done( null, null, { message : "Wrong username or password" } );
             }
         } ).catch( ( value ) =>{
