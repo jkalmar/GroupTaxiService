@@ -202,6 +202,31 @@ router.get( "/broken", function( req, res, next )
     } )
 } )
 
+/**
+ * Handles the new phone number
+ * Checks database and generate new validation code
+ */
+router.post("/auth/number", function( req, res, next )
+{
+    debug("new auth number: " + req.body.phoneNum)
+    setTimeout( () => {
+        res.sendStatus(200);
+    }, 2000 )
+
+})
+
+/**
+ * Handles validation code on phone number
+ */
+router.post("/auth/code", function(req, res, next)
+{
+    debug("Validation code: " + req.body.valCode)
+
+    setTimeout( () => {
+        res.sendStatus(200);
+    }, 2000 )
+})
+
 /*
 router.get('/users/:id', function(req, res, next) {
     console.log( req.params.id );
