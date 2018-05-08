@@ -227,6 +227,21 @@ class Driver extends EventEmitter {
         }
     }
 
+    forwardOrder(msg) {
+        debug("Forwarding order to someone else")
+        debug("order: " + msg.data)
+
+        if( this.order && this.order.params.id === msg.data.id ) {
+            this.order.forward(this, msg.comment);
+            this.orderCanceled( this.order )
+            return
+        }
+        else {
+            debug( "Trying to report order that is not handled by this driver: " + this.id )
+        }
+
+    }
+
     // -------------------- callbacks from Order -----------------------
     /**
      * Cancels the order on driver
@@ -309,6 +324,7 @@ var methodMapping = {
     "finish" : Driver.prototype.finishOrder,
     "switch" : Driver.prototype.switchOrder,
     "report" : Driver.prototype.reportOrder,
+    "forward" : Driver.prototype.forwardOrder
 }
 
 function newDriver(aDriver) {
