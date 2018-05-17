@@ -20,7 +20,7 @@ var orders = new Map(); // Current orders in the
 
 debug("Preping DB " + new Date().toISOString() )
 
-const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '0'"
+const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '0', `active` = '0'"
 
 connection.connect(function(err) {
   if (err) {

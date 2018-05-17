@@ -7,10 +7,11 @@ const OrderSwitchTime = 12000
 const OrderDoneTimeout = 30000
 
 const orderStateNew = 1;
-const orderStateTaken = 2;
-const orderStateCanceled = 3;
-const orderStateTimeout = 4;
-const orderStateDone = 5;
+const orderStateFwd = 2;
+const orderStateTaken = 3;
+const orderStateCanceled = 4;
+const orderStateTimeout = 5;
+const orderStateDone = 6;
 
 const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to`, `params` ) VALUES (?,?,?,? );";
 const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + ", `params` = ? WHERE `id` = ? limit 1;";

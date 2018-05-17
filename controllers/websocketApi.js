@@ -2,6 +2,9 @@ const WebSocket = require('ws');
 const sessionParser = require("../config/session")
 const debug = require("debug")("backend:ws")
 const drivers = require( "../models/driver" );
+const config = require("../config/config.json")
+const bodyJsonParser = require('body-parser').json();
+
 
 const correctCloseCode = 3000;
 const brokenConnectionTimer = 25000;
@@ -40,7 +43,16 @@ function verifyClientFn( info, done )
             return;
         }
 
-        done(true);
+        bodyJsonParser( info.req, {}, () => {
+            if( !info.req.body.appVersion || info.req.body.appVersion < config.appVersion ) {
+                debug("App version too old: " + info.req.body.appVersion )
+                info.req.session.destroy();
+                done( false, 402, JSON.stringify( { "op" : "old" } ) );
+                return;
+            }
+
+            done(true);
+        } )
     });
 }
 
