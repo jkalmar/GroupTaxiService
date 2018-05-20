@@ -324,7 +324,7 @@ var methodMapping = {
     "finish" : Driver.prototype.finishOrder,
     "switch" : Driver.prototype.switchOrder,
     "report" : Driver.prototype.reportOrder,
-    "forward" : Driver.prototype.forwardOrder
+    "fwd" : Driver.prototype.forwardOrder
 }
 
 function newDriver(aDriver) {
