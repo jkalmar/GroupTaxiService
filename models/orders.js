@@ -1,10 +1,7 @@
 const db = require('./database');
 const debug = require("debug")("backend:orders");
 const blacklist = require("./blacklist")
-
-const OrderTimeout = 60000
-const OrderSwitchTime = 12000
-const OrderDoneTimeout = 30000
+const cst = require("./../config/constants")
 
 const orderStateNew = 1;
 const orderStateFwd = 2;
@@ -12,6 +9,7 @@ const orderStateTaken = 3;
 const orderStateCanceled = 4;
 const orderStateTimeout = 5;
 const orderStateDone = 6;
+
 
 const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to`, `params` ) VALUES (?,?,?,? );";
 const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + ", `params` = ? WHERE `id` = ? limit 1;";
@@ -21,6 +19,8 @@ const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + ", `par
 
 const sqlOrderCheck = "SELECT `state`, `params` FROM `orders` WHERE `id`=?"
 
+
+
 /**
  * @class
  * @alias orders:Order
@@ -28,14 +28,14 @@ const sqlOrderCheck = "SELECT `state`, `params` FROM `orders` WHERE `id`=?"
  */
 class Order
 {
-    constructor( anOrderParams ){
-        this.params = anOrderParams;
+    constructor( params ){
+        this.params = params;   // the order json as recv from network
         this.accepted = false;
-        this.driverId = 0;
-        this.driver = null;
-        this.driverIterator = null;
-        this.timeout = setTimeout( this.onTimeout.bind( this ), OrderTimeout );
-        this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime )
+        this.driverId = 0;      // the id of driver who accepted this order
+        this.driver = null;     // the driver object who accepted this order
+        this.drivers = null;    // the initial drivers who were offered this order
+        this.timeout = setTimeout( this.onTimeout.bind( this ), cst.OrderTimeout );
+        this.switchTimeout = setTimeout( this.onSwitch.bind( this ), cst.OrderSwitchTime )
         this.doneTimeout = 0;
     }
 
@@ -59,7 +59,49 @@ class Order
         }
     }
 
-    onSwitch()
+    /**
+     * After new order object is instantioned onCreate is the first state needs to be
+     * called. This basically find nearest drivers and sends them this order
+     *
+     * @param {Array} drivers
+     */
+    onCreate() {
+        const point = { "lat" : this.params.lat, "lng" : this.params.lng }
+
+        db.findNearestDrivers( point ).then( ( drivers ) => {
+            for( const driver of drivers ) {
+                driver.makeOrder( this )
+            }
+            this.drivers = drivers
+        } ).catch( ( err ) => {
+            console.log( err )
+        } )
+    }
+
+    /**
+     * Orders supports forwarding. Forwarding means that everybody except current driver
+     * gets this order.
+     */
+    onFwd() {
+
+    }
+
+    /**
+     * Sends this order to all drivers except the ones that has was offered this order
+     * in the onCreate state
+     */
+    onSwitch() {
+        iDrivers = db.drivers.values()
+
+        for( d of iDrivers ){
+            d.makeOrder( this )
+        }
+
+        this.switchTimeout = null
+    }
+
+    /* Old sequential switching, this function switched drivers one after another until timeout
+    onSwitchSeq()
     {
         if( ! this.accepted )
         {
@@ -93,6 +135,7 @@ class Order
             }
         }
     }
+    */
 
     /**
      * Takes the order by a one driver
@@ -194,7 +237,7 @@ class Order
                 if( err ) debug( err );
             } );
 
-            this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
+            this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), cst.OrderDoneTimeout )
         } else {
             this.deny(aDriver);
         }
@@ -220,7 +263,7 @@ class Order
             db.c.query( sqlOrderDone, [ paramStr, this.params.id ], ( err, resuld, fields ) => {
                 if( err ) debug( err );
 
-                this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), OrderDoneTimeout )
+                this.doneTimeout = setTimeout(this.onDoneTimeout.bind( this ), cst.OrderDoneTimeout )
             } );
 
             return true;
@@ -262,6 +305,11 @@ class Order
     }
 }
 
+/**
+ *
+ * @param {express.res} res
+ * @param {OrderParams} aParam
+ */
 function createNewOrder( res, aParam )
 {
     const paramsStr = JSON.stringify(aParam);
@@ -278,14 +326,15 @@ function createNewOrder( res, aParam )
             // create new order and set id
             aParam.id = Number(result.insertId);
 
-            aParam.isBlacklisted = false;
-            if( value.length > 0 ) aParam.isBlacklisted = true;
+            if( value.length > 0 )  aParam.isBlacklisted = true;
+            else                    aParam.isBlacklisted = false;
+
 
             let theOrder = new Order( aParam );
             db.orders.set( theOrder.params.id, theOrder )
 
-            theOrder.driverIterator = db.drivers[Symbol.iterator]();
-            theOrder.onSwitch();
+            // Call first state in order
+            theOrder.onCreate();
 
             res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
         } ).catch( error => {

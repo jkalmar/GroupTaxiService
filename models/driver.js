@@ -4,6 +4,7 @@ const uuidv4 = require('uuid/v4');
 
 const db = require('./database');
 const debug = require("debug")("backend:drivers")
+const constants = require("./../config/constants")
 
 const sqlGetTaxis = "SELECT `id`, `username`, `latitude`, `longitude`, `rating_driver`, `active` FROM `taxi_drivers` WHERE `logged`=TRUE"
 const sqlGetLatLng = "SELECT `latitude`, `longitude` FROM `taxi_drivers` WHERE `id` = ? limit 1";
@@ -15,8 +16,6 @@ const sqlPutBrokenConn = "INSERT INTO broken_connections (taxiId, lat, lng) VALU
 const sqlLogout = "UPDATE taxi_drivers SET `logged` = false WHERE `id` = ? limit 1";
 
 const sqlConnection = "UPDATE taxi_drivers SET `active` = ? WHERE `id` = ? limit 1";
-
-const waitForDriverReConnectionTime = 120000;
 
 class Driver extends EventEmitter {
 
@@ -33,6 +32,7 @@ class Driver extends EventEmitter {
         this.timeout = null;
         this.order = null;
         this.username = "NaN"
+        this.orderTimeout = 0
     }
 
     logout() {
@@ -85,7 +85,7 @@ class Driver extends EventEmitter {
     broken(c) {
         if (this.wsconn === c) {
             debug("Current ws is the broken one, setting timeout")
-            this.timeout = Date.now() + waitForDriverReConnectionTime;
+            this.timeout = Date.now() + constants.waitForDriverReConnectionTime;
             this.setConnection(null);
 
             const toSend = { "op": "broken", "id": this.id, "username" : this.username }
@@ -126,6 +126,10 @@ class Driver extends EventEmitter {
         this.send(JSON.stringify(toSend))
     }
 
+    onOrderTimeout( theOrder ) {
+        this.removeOrder( theOrder )
+    }
+
     /**
      * Makes order to this driver
      * Called from order module, driver will then listen to switch callback to stop accepting this
@@ -141,6 +145,9 @@ class Driver extends EventEmitter {
         }
 
         this.order = theOrder;
+
+        // set timeout
+        this.orderTimeout = setTimeout( this.orderTimeout.bind( this, theOrder ), constants.OrderSwitchTime )
 
         // send it to the driver
         const toSend = { "id" : this.id, "op" : "order", "data" : this.order.params };
@@ -178,6 +185,8 @@ class Driver extends EventEmitter {
 
         if( this.order && (this.order.params.id === msg.data.id) ) {
             if(this.order.accept(this, msg.data)) {
+                clearTimeout( this.orderTimeout )
+                this.orderTimeout = null
                 this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
             }
             return
@@ -191,7 +200,7 @@ class Driver extends EventEmitter {
 
         if( this.order && this.order.params.id === msg.data.id ) {
             this.order.cancelDriver(this);
-            this.order = null;
+            this.removeOrder( this.order )
             return
         }
         // else
@@ -203,7 +212,7 @@ class Driver extends EventEmitter {
 
         if( this.order && this.order.params.id === msg.data.id ) {
             this.order.done(this, msg.data);
-            this.order = null;
+            this.removeOrder( this.order )
             return
         }
         // else
@@ -252,7 +261,7 @@ class Driver extends EventEmitter {
     orderCanceled( anOrder )
     {
         this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : anOrder.params}))
-        this.order = null;
+        this.removeOrder( this.order )
     }
 
     /**
