@@ -1,11 +1,7 @@
 const mysql = require('mysql');
 const debug = require("debug")("backend:database")
-const connection = mysql.createConnection({
-  host     : 'localhost',
-  user     : 'jkalmar',
-  database : 'taxi',
-  password : 'Qt4.A?I:'
-});
+const config = require("../config/config.json")
+const connection = mysql.createConnection( config.dbTaxi );
 
 var drivers = new Map(); // Currently logged drivers
 

@@ -1,0 +1,7 @@
+{
+    "waitForDriverReConnectionTime" : 120000,
+    "OrderTimeout" : 60000,
+    "OrderSwitchTime" : 12000,
+    "OrderDoneTimeout" : 30000
+}
+

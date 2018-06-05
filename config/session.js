@@ -3,7 +3,7 @@ const MySQLStore = require('express-mysql-session')(session);
 
 // load options from config file and use it as connection settings for
 // session db
-const options = require('./config.json').development;
+const options = require('./config.json').dbSession;
 const sessionStore = new MySQLStore(options);
 
 const sessionParser = session({

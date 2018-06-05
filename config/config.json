@@ -1,5 +1,12 @@
 {
-    "development": {
+    "dbTaxi" : {
+        "user": "USER",
+        "password": "PASS",
+        "database": "taxi",
+        "host": "localhost",
+        "port" : 3306
+    },
+    "dbSession" : {
         "user": "USER",
         "password": "PASS",
         "database": "session_test",

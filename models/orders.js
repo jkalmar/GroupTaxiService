@@ -188,17 +188,28 @@ class Order
     {
         debug(`Denying order ${this.params.id}`)
 
+        // denying an order has point only if state is "orderStateNew"
+        // otherwise this order has been either taken, forwarded or finished
         if( this.params.state === orderStateNew ) {
-            if( this.driver === aDriver ) {
-                clearTimeout( this.switchTimeout );
-                this.onSwitch()
+
+            const index = this.drivers.indexOf( aDriver.id );
+
+            if( index != -1 ) {
+                // Cut the driver who denied from order driver list
+                // splice returns copy of new array without the element on index
+                this.drivers.splice( index, 1 );
             }
-            else {
-                debug( "WARNING: Driver with id: " + aDriver.id + " wants to denied order for driver: " + this.driver.id );
+
+            // lets check if all drivers denied this order
+            // if all denied then the order need to be send to ALL drivers just for
+            // sure if someone else (further) want to accept it
+            if( this.drivers.length === 0 ) {
+                clearTimeout( this.switchTimeout );
+                this.onSwitch();
             }
         }
         else {
-            debug( "INFO: Ignoring denying of not new order" );
+            debug( "INFO: Driver " + aDriver.username + " wants to deny order that is not in new state but in state: " + this.params.state );
         }
     }
 
