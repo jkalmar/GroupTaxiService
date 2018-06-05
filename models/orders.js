@@ -30,8 +30,6 @@ class Order
 {
     constructor( params ){
         this.params = params;   // the order json as recv from network
-        this.accepted = false;
-        this.driverId = 0;      // the id of driver who accepted this order
         this.driver = null;     // the driver object who accepted this order
         this.drivers = null;    // the initial drivers who were offered this order
         this.timeout = setTimeout( this.onTimeout.bind( this ), cst.OrderTimeout );
@@ -41,7 +39,7 @@ class Order
 
     onTimeout()
     {
-        if( ! this.accepted )
+        if( this.driver === null )
         {
             debug(`Timeout for order, id: ${this.params.id}`);
             this.params.state = orderStateTimeout;
@@ -83,7 +81,11 @@ class Order
      * gets this order.
      */
     onFwd() {
+        iDrivers = db.drivers.values()
 
+        for( d of iDrivers ){
+            d.makeOrder( this )
+        }
     }
 
     /**
@@ -154,7 +156,6 @@ class Order
 
         if( this.params.state === orderStateNew )
         {
-            this.accepted = true;
             this.driver = aDriver;
             this.params = newParams;
 
@@ -193,7 +194,7 @@ class Order
                 this.onSwitch()
             }
             else {
-                debug( "WARNING: Driver with id: " + aDriver.id + " wants to denied order for driver: " + this.driverId );
+                debug( "WARNING: Driver with id: " + aDriver.id + " wants to denied order for driver: " + this.driver.id );
             }
         }
         else {
