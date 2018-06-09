@@ -54,7 +54,12 @@ passport.use('local-signin', new LocalStrategy(
         driver.getTaxiByNamePassword( username, password ).then( ( result ) => {
             if( result.length == 1 )
             {
-                done( null, result[0].id, { message : "User succesfully loged in" } );
+                okObject = {
+                    "id" : result[0].id,
+                    "appVersion" : req.body.appVersion
+                }
+
+                done( null, okObject, { message : "User succesfully loged in" } );
             }
             else
             {
@@ -69,14 +74,14 @@ passport.use('local-signin', new LocalStrategy(
 ));
 
 
-    passport.serializeUser(function(user, done) {
-        debug("serialize: ", user);
-        done(null, user);
+    passport.serializeUser(function(okObject, done) {
+        debug("serialize: ", okObject);
+        done(null, okObject);
     });
 
-    passport.deserializeUser(function(id, done) {
-        debug("deserialize: ", id);
-        done(null, id);
+    passport.deserializeUser(function(okObject, done) {
+        debug("deserialize: ", okObject);
+        done(null, okObject);
     });
 
 

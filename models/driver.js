@@ -187,8 +187,10 @@ class Driver extends EventEmitter {
             if(this.order.accept(this, msg.data)) {
                 clearTimeout( this.orderTimeout )
                 this.orderTimeout = null
-                this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
             }
+
+            this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
+
             return
         }
         // else
@@ -241,8 +243,9 @@ class Driver extends EventEmitter {
         debug("order: " + msg.data)
 
         if( this.order && this.order.params.id === msg.data.id ) {
-            this.orderCanceled( this.order )
-            this.order.onFwd(this, msg.comment);
+            let order = this.order
+            this.orderCanceled( msg.data )
+            order.onFwd(this, msg.comment);
             return
         }
         else {

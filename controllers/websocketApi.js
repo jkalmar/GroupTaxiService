@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const sessionParser = require("../config/session")
 const debug = require("debug")("backend:ws")
-const drivers = require( "../models/driver" );
+const drivers = require("../models/driver");
 const config = require("../config/config.json")
 const bodyJsonParser = require('body-parser').json();
 
@@ -13,8 +13,7 @@ const syncTime = 60000;
 // the websocket server instance
 var WSinstance = null;
 
-function heartbeat()
-{
+function heartbeat() {
     this.isAlive = true;
 }
 
@@ -25,34 +24,33 @@ function heartbeat()
  * @param {Express.Request} aReq
  * @param {WebSocket} ws
  */
-function setDefaultsOnWs( aDriver, aReq, ws )
-{
-    debug( "Setting values for ws" );
+function setDefaultsOnWs(aDriver, aReq, ws) {
+    debug("Setting values for ws");
     ws.driver = aDriver;
     ws.isAlive = true;
     ws.incommingReq = aReq;
 }
 
-function verifyClientFn( info, done )
-{
+function verifyClientFn(info, done) {
     debug("New client connected")
     sessionParser(info.req, {}, () => {
         if (info.req.session.passport === undefined) {
             debug("Connection has no session")
-            done(false, 401, JSON.stringify( { "op" : "unauth" } ) );
+            done(false, 401, JSON.stringify({ "op": "unauth" }));
             return;
         }
 
-        bodyJsonParser( info.req, {}, () => {
-            if( !info.req.body.appVersion || info.req.body.appVersion < config.appVersion ) {
-                debug("App version too old: " + info.req.body.appVersion )
-                info.req.session.destroy();
-                done( false, 402, JSON.stringify( { "op" : "old" } ) );
-                return;
-            }
+        const appVersion = Number(info.req.session.passport.user.appVersion)
 
-            done(true);
-        } )
+        if ( isNaN(appVersion) || appVersion < config.appVersion) {
+            debug("App version too old: " + appVersion)
+            info.req.session.destroy();
+            done(false, 402, JSON.stringify({ "op": "old" }));
+            return;
+        }
+
+        done(true);
+
     });
 }
 
@@ -62,14 +60,13 @@ function verifyClientFn( info, done )
  *
  * @param {String} message
  */
-function handleMessageFn( message )
-{
+function handleMessageFn(message) {
     debug(`WS message ${message} from user ${this.driver.id}`);
 
-    const msg = JSON.parse( message );
-    let theDriver = drivers.getDriver( this.driver.id )
+    const msg = JSON.parse(message);
+    let theDriver = drivers.getDriver(this.driver.id)
 
-    if( ! theDriver ){
+    if (!theDriver) {
         debug("No driver found!!!")
         return;
     }
@@ -78,32 +75,29 @@ function handleMessageFn( message )
     theDriver.handleMsg(msg);
 }
 
-function handleCloseFn( code, reason )
-{
-    debug( `Closing connection for user: ${this.driver.id}` );
-    debug( `Code: ${code}` );
-    debug( `Reason: ${reason}` );
+function handleCloseFn(code, reason) {
+    debug(`Closing connection for user: ${this.driver.id}`);
+    debug(`Code: ${code}`);
+    debug(`Reason: ${reason}`);
 
-    if( code == correctCloseCode ){
+    if (code == correctCloseCode) {
         this.driver.logout();
         this.incommingReq.session.destroy();
-    }else if( this.driver.broken(this) === true ) {
+    } else if (this.driver.broken(this) === true) {
         this.incommingReq.session.destroy();
-    }else {
+    } else {
         // todo counter
     }
 
 }
 
-function handleErrorFn( err )
-{
-    debug( "Error recv for driver: " + this.driver.id );
+function handleErrorFn(err) {
+    debug("Error recv for driver: " + this.driver.id);
     this.driver.error()
     this.incommingReq.session.destroy();
 }
 
-class WSserver
-{
+class WSserver {
     constructor() {
         this.wss = null;
         this.brokenConnCheck = null;
@@ -115,8 +109,8 @@ class WSserver
             server
         });
 
-        this.brokenConnCheck = setInterval( this.brokenCheck.bind( this ), brokenConnectionTimer);
-        this.wss.on('connection', ( ws, req ) => { this.handleNewConnection( ws, req ) });
+        this.brokenConnCheck = setInterval(this.brokenCheck.bind(this), brokenConnectionTimer);
+        this.wss.on('connection', (ws, req) => { this.handleNewConnection(ws, req) });
     }
 
     /**
@@ -125,32 +119,29 @@ class WSserver
      * @param {WebSocket} ws
      * @param {Express.Request} req
      */
-    handleNewConnection( ws, req )
-    {
+    handleNewConnection(ws, req) {
         // create new Driver object
-        const theDriver = drivers.addDriver( Number(req.session.passport.user), ws );
+        const theDriver = drivers.addDriver(Number(req.session.passport.user.id), ws);
 
-        setDefaultsOnWs( theDriver, req, ws );
+        setDefaultsOnWs(theDriver, req, ws);
 
         ws.on('pong', heartbeat);
         ws.on("ping", heartbeat);
-        ws.on( "message", handleMessageFn );
-        ws.on( "close", handleCloseFn );
-        ws.on( "error", handleErrorFn );
+        ws.on("message", handleMessageFn);
+        ws.on("close", handleCloseFn);
+        ws.on("error", handleErrorFn);
     }
 
-    brokenCheck()
-    {
-        debug( "Checking broken connections" );
+    brokenCheck() {
+        debug("Checking broken connections");
 
-        if( this.wss == null ) return;
+        if (this.wss == null) return;
 
         const currentTime = Date.now();
 
-        this.wss.clients.forEach( ( c ) =>
-        {
-            if( c.isAlive === false ){
-                debug( `Found broken connection. User: ${ c.driver.id }` );
+        this.wss.clients.forEach((c) => {
+            if (c.isAlive === false) {
+                debug(`Found broken connection. User: ${c.driver.id}`);
                 // terminate will close this connection and close callback will be called
                 return c.terminate();
             }
@@ -159,14 +150,14 @@ class WSserver
             c.ping('', false, true);
         });
 
-        drivers.timeoutCheck( currentTime );
+        drivers.timeoutCheck(currentTime);
     }
 }
 
 function init(server) {
-    debug( "Initializing websocket module" );
+    debug("Initializing websocket module");
     WSinstance = new WSserver();
-    WSinstance.init( server );
+    WSinstance.init(server);
 }
 
 module.exports = {

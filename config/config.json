@@ -1,17 +1,17 @@
 {
     "dbTaxi" : {
         "user": "USER",
-        "password": "PASS",
+        "password": "********",
         "database": "taxi",
         "host": "localhost",
         "port" : 3306
     },
     "dbSession" : {
         "user": "USER",
-        "password": "PASS",
+        "password": "********",
         "database": "session_test",
         "host": "localhost",
         "port" : 3306
     },
-    "appVersion": 907
+    "appVersion": 908
 }

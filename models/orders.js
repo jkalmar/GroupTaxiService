@@ -65,7 +65,9 @@ class Order
      * @param {Array} drivers
      */
     onCreate() {
-        const point = { "lat" : this.params.lat, "lng" : this.params.lng }
+        const point = { "lat" : this.params.from.lat, "lng" : this.params.from.lng }
+
+        debug("Order created with id: " + this.id)
 
         db.findNearestDrivers( point ).then( ( drivers ) => {
             for( const driver of drivers ) {
@@ -82,9 +84,11 @@ class Order
      * gets this order.
      */
     onFwd( currentDriver ) {
-        iDrivers = db.drivers.values()
+        this.params.state = orderStateFwd
+        this.driver = null
+        let iDrivers = db.drivers.values()
 
-        for( d of iDrivers ){
+        for( let d of iDrivers ){
             if(d === currentDriver) continue
 
             d.makeOrder( this )
@@ -96,9 +100,9 @@ class Order
      * in the onCreate state
      */
     onSwitch() {
-        iDrivers = db.drivers.values()
+        let iDrivers = db.drivers.values()
 
-        for( d of iDrivers ){
+        for( let d of iDrivers ){
             d.makeOrder( this )
         }
 
@@ -157,7 +161,7 @@ class Order
 
         debug(`Driver: ${aDriver.id} has taken the order: ${this.params.id}`)
 
-        if( this.params.state === orderStateNew )
+        if( this.params.state === orderStateNew || this.params.state === orderStateFwd )
         {
             this.driver = aDriver;
             this.params = newParams;
@@ -175,6 +179,7 @@ class Order
         }
         else
         {
+            debug("Can not take order that is not in new or fwd state")
             return false;
         }
     }
@@ -192,7 +197,7 @@ class Order
 
         // denying an order has point only if state is "orderStateNew"
         // otherwise this order has been either taken, forwarded or finished
-        if( this.params.state === orderStateNew ) {
+        if( this.params.state === orderStateNew || this.params.state === orderStateFwd ) {
 
             const index = this.drivers.indexOf( aDriver.id );
 
@@ -248,7 +253,7 @@ class Order
      * @param {Driver} aDriver
      */
     cancelDriver( aDriver ) {
-        if( this.params.state === orderStateTaken ) {
+        if( this.params.state === orderStateTaken && this.driver === aDriver ) {
             debug(`Canceling order ${this.params.id}`)
             this.params.state = orderStateCanceled;
             const paramsStr = JSON.stringify(this.params)

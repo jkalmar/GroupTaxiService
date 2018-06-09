@@ -21,10 +21,10 @@ const processRegister = (req, res, next) =>
 /**
  * Check is request is authenticated and if yes call the next handler in row
  * if not then responde with redirection
- * 
- * @param {express.req} req 
- * @param {express.res} res 
- * @param {express.callback} next 
+ *
+ * @param {express.req} req
+ * @param {express.res} res
+ * @param {express.callback} next
  */
 const isLoggedIn = ( req, res, next ) =>
 {
@@ -35,23 +35,23 @@ const isLoggedIn = ( req, res, next ) =>
     req.session.destroy( ( err ) => {
         res.sendStatus(403);
     } )
-    
+
 }
 
 function authHandler( req, res, next )
 {
     debug( "Handling login post" );
-    
+
     passport.authenticate('local-signin', function(err, user, info)
     {
         debug( err );
         debug( user );
         debug( info );
-    
+
         if (err) { return next(err) }
 
         if (!user) { return res.sendStatus( 401 ) }
-        
+
         req.logIn( user, function(err) {
             if( err )
             {
@@ -59,15 +59,15 @@ function authHandler( req, res, next )
                 return
             }
 
-            driver.login( user ).then( ( value ) => {
-                res.json( { "id" : user } );
+            driver.login( user.id ).then( ( value ) => {
+                res.json( { "user" : user } );
             } ).catch( ( errr ) => {
-                res.json( { "id" : user } );
+                res.json( { "user" : user } );
             } )
 
-            
-        } )        
-    })(req, res, next); 
+
+        } )
+    })(req, res, next);
 }
 
 function registerHandler( req, res, next )
@@ -79,20 +79,20 @@ function registerHandler( req, res, next )
         debug( err );
         debug( user );
         debug( info );
-    
+
         if (err) { return next(err) }
 
         if (!user) { return res.sendStatus( 302 ) }
-        
+
         req.logIn( user, function(err) {
-            res.json( { "id" : user } );
-        } )        
-    })(req, res, next); 
+            res.json( { "user" : user } );
+        } )
+    })(req, res, next);
 }
 
 function logout( req, res, next )
 {
-    driver.logout( req.user ).then( ( data ) => {
+    driver.logout( req.user.id ).then( ( data ) => {
         req.logout()
         req.session.destroy( function(err) {
             res.sendStatus( 200 );
@@ -105,8 +105,8 @@ function logout( req, res, next )
 
 /**
  * Setup routes for handling the authentication
- * 
- * @param {express.router} router 
+ *
+ * @param {express.router} router
  */
 const setUp = ( router ) =>
 {
@@ -115,7 +115,7 @@ const setUp = ( router ) =>
     router.get('/register', register );
     router.get('/login', login );
     router.get('/logout', isLoggedIn, logout );
-    
+
     router.post('/register', registerHandler );
     router.post('/login', authHandler );
 };

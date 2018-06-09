@@ -5,7 +5,7 @@ const connection = mysql.createConnection( config.dbTaxi );
 
 var drivers = new Map(); // Currently logged drivers
 
-const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '1', `active` = '1'"
+const sqlInitTaxi = "UPDATE `taxi_drivers` SET `logged` = '0', `active` = '0'"
 const sqlFindNearDrivers = "SELECT id, (6371 * acos(cos(radians(?)) * " +
                            "cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * " +
                            "sin(radians(latitude ))) ) AS distance " +
@@ -32,15 +32,18 @@ debug("Preping DB " + new Date().toISOString() )
  */
 function findNearestDrivers( point ) {
   return new Promise( ( resolve, reject ) => {
+    debug(point)
+
     connection.query( sqlFindNearDrivers, [ point.lat, point.lng, point.lat ], (err, resSet, fields) => {
       if( err ) {
         reject( err )
         return
       }
 
-      resDrivers = []
+      let resDrivers = []
 
       for( i = 0; i < resSet.length; i++ ) {
+        debug("Nearest drivers: " + i)
         let driver = drivers.get( resSet[i].id )
         if( driver ) resDrivers.push( driver )
       }
