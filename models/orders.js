@@ -45,7 +45,8 @@ class Order
             this.params.state = orderStateTimeout;
             const paramStr = JSON.stringify(this.params)
 
-            clearTimeout( this.switchTimeout )
+            this.clearTimers()
+
             // remove this order from the global list of active orders
             // and mark it as timeout order in DB
             db.orders.delete( this.params.id )
@@ -80,10 +81,12 @@ class Order
      * Orders supports forwarding. Forwarding means that everybody except current driver
      * gets this order.
      */
-    onFwd() {
+    onFwd( currentDriver ) {
         iDrivers = db.drivers.values()
 
         for( d of iDrivers ){
+            if(d === currentDriver) continue
+
             d.makeOrder( this )
         }
     }
@@ -159,8 +162,7 @@ class Order
             this.driver = aDriver;
             this.params = newParams;
 
-            clearTimeout( this.timeout );
-            clearTimeout( this.switchTimeout )
+            this.clearTimers()
 
             db.c.query( sqlOrderTake, [ this.driver.id, paramStr, this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
@@ -221,6 +223,9 @@ class Order
     {
         debug( "Order canceled" )
         this.params.state = orderStateCanceled;
+
+        this.clearTimers()
+
         const paramsStr = JSON.stringify(this.params)
         db.c.query( sqlOrderCancel, [paramsStr, this.params.id] ,( err, result, fields ) => {
             if( err ) debug( err );
@@ -229,6 +234,8 @@ class Order
         if(this.driver) {
             this.driver.orderCanceled(this);
         }
+
+        // TODO: Notify all initial drivers about canceling this order
 
         db.orders.delete( this.params.id )
     }
@@ -314,6 +321,20 @@ class Order
 
         blacklist.insertNew( reportData );
         this.cancelDriver(aDriver);
+    }
+
+    /**
+     * Clears the timeouts on this order
+     */
+    clearTimers() {
+        if( this.timeout ) {
+            clearTimeout( this.timeout )
+            this.timeout = 0
+        }
+        if( this.switchTimeout ) {
+            clearTimeout( this.switchTimeout )
+            this.switchTimeout = 0
+        }
     }
 }
 

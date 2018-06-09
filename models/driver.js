@@ -147,7 +147,7 @@ class Driver extends EventEmitter {
         this.order = theOrder;
 
         // set timeout
-        this.orderTimeout = setTimeout( this.orderTimeout.bind( this, theOrder ), constants.OrderSwitchTime )
+        this.orderTimeout = setTimeout( this.onOrderTimeout.bind( this, theOrder ), constants.OrderSwitchTime )
 
         // send it to the driver
         const toSend = { "id" : this.id, "op" : "order", "data" : this.order.params };
@@ -241,12 +241,12 @@ class Driver extends EventEmitter {
         debug("order: " + msg.data)
 
         if( this.order && this.order.params.id === msg.data.id ) {
-            this.order.forward(this, msg.comment);
             this.orderCanceled( this.order )
+            this.order.onFwd(this, msg.comment);
             return
         }
         else {
-            debug( "Trying to report order that is not handled by this driver: " + this.id )
+            debug( "Trying to forward order that is not handled by this driver: " + this.id )
         }
 
     }
