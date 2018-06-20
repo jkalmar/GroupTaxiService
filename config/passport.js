@@ -47,10 +47,6 @@ passport.use('local-signin', new LocalStrategy(
         passReqToCallback: true // allows us to pass back the entire request to the callback
     },
     function(req, username, password, done) {
-        const isValidPassword = ( userpass, password ) => {
-            return password === userpass;
-        }
-
         driver.getTaxiByNamePassword( username, password ).then( ( result ) => {
             if( result.length == 1 )
             {

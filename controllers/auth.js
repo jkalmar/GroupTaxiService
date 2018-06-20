@@ -2,6 +2,7 @@ const debug = require('debug')('backend:auth');
 const passportConfig = require('../config/passport');
 const passport = require('passport');
 const driver = require( '../models/driver' );
+const config = require( "../config/config.json")
 
 const register = (req, res, next) =>
 {
@@ -41,6 +42,15 @@ const isLoggedIn = ( req, res, next ) =>
 function authHandler( req, res, next )
 {
     debug( "Handling login post" );
+
+    const appVersion = Number(req.body.appVersion)
+
+    if ( isNaN(appVersion) || appVersion < config.appVersion) {
+        debug("App version too old: " + appVersion)
+        req.session.destroy();
+        done(false, 402, JSON.stringify({ "op": "old" }));
+        return;
+    }
 
     passport.authenticate('local-signin', function(err, user, info)
     {
