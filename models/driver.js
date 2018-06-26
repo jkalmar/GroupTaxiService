@@ -1,6 +1,5 @@
 "use strict"
 const EventEmitter = require('events');
-const uuidv4 = require('uuid/v4');
 
 const db = require('./database');
 const debug = require("debug")("backend:drivers")
@@ -221,10 +220,6 @@ class Driver extends EventEmitter {
         // send operation unsuccessfull to driver
     }
 
-    switchOrder(msg) {
-
-    }
-
     reportOrder(msg) {
         debug(`Reporting order: ${msg.data.id} by driver: ${this.id}`)
 
@@ -334,7 +329,6 @@ var methodMapping = {
     "take" : Driver.prototype.takeOrder,
     "decline" : Driver.prototype.declineOrder,
     "finish" : Driver.prototype.finishOrder,
-    "switch" : Driver.prototype.switchOrder,
     "report" : Driver.prototype.reportOrder,
     "fwd" : Driver.prototype.forwardOrder
 }

@@ -1,12 +1,13 @@
 {
   "name": "backend",
-  "version": "0.0.0",
+  "version": "0.9.8",
   "private": true,
   "scripts": {
     "start": "node ./bin/www"
   },
   "dependencies": {
-    "@types/ws": "4.0.2",
+    "@types/node": "^10.3.5",
+    "@types/ws": "^4.0.2",
     "body-parser": "1.18.2",
     "cookie-parser": "1.4.3",
     "debug": "3.1.0",
@@ -20,8 +21,15 @@
     "passport": "0.4.0",
     "passport-local": "1.0.0",
     "serve-favicon": "2.5.0",
+    "simple-node-logger": "0.93.37",
     "uuid": "3.2.1",
-    "ws": "5.1.0",
-    "simple-node-logger": "0.93.37"
+    "ws": "5.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.0.0",
+    "eslint-plugin-node": "^6.0.1"
+  },
+  "engines": {
+    "node": ">=6.0.0"
   }
 }

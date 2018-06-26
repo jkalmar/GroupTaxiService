@@ -11,7 +11,9 @@ const taxi_drivers = require('../models/driver');
 const trouble = require('../models/trouble');
 const orders = require( "../models/orders" )
 const blacklist = require( "../models/blacklist" )
+const users = require("../controllers/users")
 
+users( router )
 
 router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
