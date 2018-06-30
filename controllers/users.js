@@ -54,11 +54,11 @@ function handleValidation( req, res, next ) {
  * @param {Express.Response} res
  */
 function handleDataUpdate( req, res ) {
-    debug("User: " + req.body.phoneNum + " field: " + req.body.pref + " value: " + req.body.val )
+    debug("User: " + req.body.phoneNum + " field: " + req.body.key + " value: " + req.body.value )
 
     let fn = null
 
-    switch( req.body.pref ) {
+    switch( req.body.key ) {
         case "pref_name":
             fn = model.updateName
             break
@@ -76,16 +76,30 @@ function handleDataUpdate( req, res ) {
     }
 
     if( fn !== null ) {
-        fn( req.body.phoneNum, req.body.val ).then( result => {
+        fn( req.body.phoneNum, req.body.value ).then( result => {
             res.sendStatus(200)
         } ).catch( err => {
             debug( err )
+            res.sendStatus(500)
         } )
     }
 }
 
-function handleGetUsers( req, res, next ) {
-
+/**
+ * Gets all user in DB, this can take a lot of time if there is a lot
+ * of users in DB
+ * TODO: need to implement partial loading
+ *
+ * @param {Express.Request} req
+ * @param {Express.Response} res
+ */
+function handleGetUsers( req, res ) {
+    model.getAllUsers().then( result => {
+        res.json( result )
+    } ).catch( err => {
+        debug(err)
+        res.sendStatus(400)
+    })
 }
 
 /**
@@ -99,9 +113,16 @@ function handleGetUsers( req, res, next ) {
 function handleGetByPhone( req, res ) {
     const phoneNum = req.params.phone;
 
-
-
-
+    model.getUserByPhone( phoneNum ).then( result => {
+        if( result != null ) {
+            res.json( result )
+        } else {
+            res.sendStatus(404)
+        }
+    }).catch( err => {
+        debug(err)
+        res.sendStatus(400)
+    } )
 }
 
 function init( router ) {

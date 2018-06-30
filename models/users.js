@@ -1,12 +1,16 @@
 const db = require('./database');
+const debug = require("debug")("backend:models:users")
+
 
 const sqlGetAllUsers = "SELECT id, nick, phone, email, address FROM customers"
 const sqlGetUserByPhone = "SELECT id, nick, phone, email, address, password FROM customers WHERE `phone`=? LIMIT 1"
 const sqlGetUserByPhonePassword = "SELECT id FROM customers WHERE `phone`=? AND `password`=? LIMIT 1"
 const sqlInserNewUser = "INSERT INTO customers (`phone`, `password`) VALUES (?, ?)"
-const sqlUpdateNick = "UPDATE LOW_PRIORITY `customers` SET `nick`=? WHERE `id`=? limit 1"
-const sqlUpdateEmail = "UPDATE LOW_PRIORITY `customers` SET `email`=? WHERE `id`=? limit 1"
-const sqlUpdateAddress = "UPDATE LOW_PRIORITY `customers` SET `address`=? WHERE `id`=? limit 1"
+const sqlUpdateNick = "UPDATE LOW_PRIORITY `customers` SET `nick`=? WHERE `phone`=? limit 1"
+const sqlUpdateEmail = "UPDATE LOW_PRIORITY `customers` SET `email`=? WHERE `phone`=? limit 1"
+const sqlUpdateAddress = "UPDATE LOW_PRIORITY `customers` SET `address`=? WHERE `phone`=? limit 1"
+const sqlUpdatePass = "UPDATE LOW_PRIORITY `customers` SET `password`=? WHERE `phone`=? limit 1"
+
 
 
 /**
@@ -15,7 +19,7 @@ const sqlUpdateAddress = "UPDATE LOW_PRIORITY `customers` SET `address`=? WHERE 
  */
 function getAllUsers() {
     return new Promise( ( resolve, reject ) => {
-        db.c.query( sqlGetAllUsers, [], ( err, result, fields ) => {
+        db.c.query( sqlGetAllUsers, [], ( err, result ) => {
             if( err )   reject(err)
             else        resolve(result)
         } )
@@ -29,9 +33,15 @@ function getAllUsers() {
  */
 function getUserByPhone( phone ) {
     return new Promise( ( resolve, reject ) => {
-        db.c.query( sqlGetUserByPhone, [ phone ], ( err, result, fields ) => {
-            if( err )   reject(err)
-            else        resolve(result)
+        db.c.query( sqlGetUserByPhone, [ phone ], ( err, result ) => {
+            if( err )
+            {
+                reject(err)
+            }
+            else
+            {
+                resolve(result[0])
+            }
         } )
     } )
 }
@@ -118,6 +128,21 @@ function updateAddress( id, address ) {
     } )
 }
 
+/**
+ * Updates the address of the user identified by "id"
+ *
+ * @param {Number} id       The id representing the user, this is the key in user table
+ * @param {String} address  The new address value, len 0 is valid and deletes user address
+ */
+function updatePassword( id, pass ) {
+    return new Promise( ( resolve, reject ) => {
+        db.c.query( sqlUpdatePass, [ pass, id ], ( err, result, fields ) => {
+            if( err )   reject(err)
+            else        resolve(0)
+        } )
+    } )
+}
+
 module.exports = {
     getAllUsers,
     getUserByPhone,
@@ -125,5 +150,6 @@ module.exports = {
     newUser,
     updateName,
     updateEmail,
-    updateAddress
+    updateAddress,
+    updatePassword
 }
