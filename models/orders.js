@@ -67,7 +67,7 @@ class Order
     onCreate() {
         const point = { "lat" : this.params.from.lat, "lng" : this.params.from.lng }
 
-        debug("Order created with id: " + this.id)
+        debug("Order created with id: " + this.params.id)
 
         db.findNearestDrivers( point ).then( ( drivers ) => {
             for( const driver of drivers ) {
@@ -376,6 +376,7 @@ function createNewOrder( res, aParam )
 
             res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
         } ).catch( error => {
+            debug(error)
             res.sendStatus( 500 )
         } )
 

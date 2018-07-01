@@ -18,6 +18,15 @@ function handleNewUser( req, res, next ) {
     } )
 }
 
+function handleLostPassword( req, res ) {
+    model.lostPassword( req.body.phoneNum ).then( result => {
+        res.json( result ) // { pass : "pass"}
+    } ).catch( err => {
+        debug(err)
+        res.sendStatus(400)
+    } )
+}
+
 /**
  *
  * @param {Express.Request} req
@@ -29,8 +38,13 @@ function handleValidation( req, res, next ) {
     model.getUserByPhonePassword( req.body.phoneNum, req.body.valCode ).then( result => {
         debug("Validation result is: " + result)
 
-        if( result !== NaN )    res.json( { id : result } )
-        else                    res.sendStatus(403)
+        // Check if the result is NaN using isNaN and if yes then the user validation
+        // code is wrong and so send him 403 status
+        if( isNaN( result )  ) {
+            res.sendStatus(403)
+        } else {
+            res.json( { id : result } )
+        }
     } ).catch( err => {
         debug(err)
         res.sendStatus(400)
@@ -70,6 +84,9 @@ function handleDataUpdate( req, res ) {
             break
         case "pref_password":
             fn = model.updatePassword
+            break
+        case "comment":
+            fn = models.updateComment
             break
         default:
             res.sendStatus(403)
@@ -129,6 +146,7 @@ function init( router ) {
     router.get( "/users", handleGetUsers )
     router.get( "/users/phone/:phone", handleGetByPhone )
     router.post( "/users/new", handleNewUser )
+    router.post( "/users/lost", handleLostPassword );
     router.post( "/users/val", handleValidation )
     router.post( "/users/update", handleDataUpdate )
 }
