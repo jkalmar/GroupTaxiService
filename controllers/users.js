@@ -86,7 +86,7 @@ function handleDataUpdate( req, res ) {
             fn = model.updatePassword
             break
         case "comment":
-            fn = models.updateComment
+            fn = model.updateComment
             break
         default:
             res.sendStatus(403)
