@@ -30,6 +30,7 @@ class Driver extends EventEmitter {
         this.isAlive = false;
         this.timeout = null;
         this.order = null;
+        this.orders = new Map();
         this.username = "NaN"
         this.orderTimeout = 0
     }
@@ -159,7 +160,12 @@ class Driver extends EventEmitter {
      * @param {Order} theOrder
      */
     removeOrder( theOrder ) {
-        if(this.order && (this.order.id === theOrder.id)) this.order = null;
+        if( this.orders.has( theOrder.params.id ) ) {
+            this.orders.delete( theOrder.params.id )
+            debug("Succesfully deleted order " + theOrder.params.id + " from driver " + this.id )
+        } else {
+            debug("Failed to delete order " + theOrder.params.id + " from driver " + this.id )
+        }
     }
 
     /**
