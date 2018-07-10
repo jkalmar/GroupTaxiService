@@ -31,8 +31,8 @@ class Driver extends EventEmitter {
         this.timeout = null;
         this.order = null;
         this.orders = new Map();
+        this.orderTimeouts = new Map();
         this.username = "NaN"
-        this.orderTimeout = 0
     }
 
     logout() {
@@ -136,21 +136,24 @@ class Driver extends EventEmitter {
      * order. If driver sends accept or deny aftef switch then it will be sends response that order
      * has already passed
      *
-     * @param {Order} theOrder
+     * @param {Order} order
      */
-    makeOrder( theOrder ) {
-        if( this.order ) {
-            debug(`Driver: ${this.id} already has an order: ${this.order.params.id}`)
+    makeOrder( order ) {
+        if( this.orders.has( order.params.id ) ) {
+            debug(`Driver: ${this.id} already has an order: ${order.params.id}`)
             return;
         }
 
-        this.order = theOrder;
+        this.orders.set( order.params.id,theOrder );
 
-        // set timeout
-        this.orderTimeout = setTimeout( this.onOrderTimeout.bind( this, theOrder ), constants.OrderSwitchTime )
+        // create timeout and add it to order timeout map
+        this.orderTimeouts.set(
+            order.params.id,
+            setTimeout( this.onOrderTimeout.bind( this, order ), constants.OrderSwitchTime )
+        )
 
         // send it to the driver
-        const toSend = { "id" : this.id, "op" : "order", "data" : this.order.params };
+        const toSend = { "id" : this.id, "op" : "order", "data" : order.params };
         this.send( JSON.stringify(toSend));
     }
 
@@ -185,23 +188,29 @@ class Driver extends EventEmitter {
         });
     }
 
+    // TODO: Error check
     takeOrder(msg) {
         debug(`Taking order: ${msg.data.id} by driver: ${this.id}`)
 
-        if( this.order && (this.order.params.id === msg.data.id) ) {
-            if(this.order.accept(this, msg.data)) {
-                clearTimeout( this.orderTimeout )
-                this.orderTimeout = null
+        if( this.orders.has( msg.data.id ) ) {
+            const order = this.orders.get( msg.data.id )
+
+            if( order.accept( this, msg.data ) ) {
+                clearTimeout( this.orderTimeouts.get( msg.data.id ) )
+                this.orderTimeouts.delete( msg.data.id )
+
+                this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
+            } else {
+                // failed to accept order
+                // send operation unsuccessfull to driver
             }
 
-            this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
-
-            return
+        } else {
+            // send operation unsuccessfull to driver
         }
-        // else
-        // send operation unsuccessfull to driver
     }
 
+    // TODO: Multiple orders
     declineOrder( msg ){
         debug(`Declining order: ${msg.data.id} by driver: ${this.id}`)
 
@@ -214,6 +223,7 @@ class Driver extends EventEmitter {
         // send operation unsuccessfull to driver
     }
 
+    // TODO: Multiple orders
     finishOrder(msg){
         debug(`Finishing order: ${msg.data.id} by driver: ${this.id}`)
 
@@ -226,6 +236,7 @@ class Driver extends EventEmitter {
         // send operation unsuccessfull to driver
     }
 
+    // TODO: Multiple orders
     reportOrder(msg) {
         debug(`Reporting order: ${msg.data.id} by driver: ${this.id}`)
 
@@ -239,6 +250,7 @@ class Driver extends EventEmitter {
         }
     }
 
+    // TODO: Multiple orders
     forwardOrder(msg) {
         debug("Forwarding order to someone else")
         debug("order: " + msg.data)
