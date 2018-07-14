@@ -6,17 +6,18 @@ const cst = require("./../config/constants")
 const orderStateNew = 1;
 const orderStateFwd = 2;
 const orderStateTaken = 3;
-const orderStateCanceled = 4;
-const orderStateTimeout = 5;
-const orderStateDone = 6;
+const orderStateCanceledUser = 4;
+const orderStateCanceledTaxi = 5;
+const orderStateTimeout = 6;
+const orderStateDone = 7;
 
 
 const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to`, `params` ) VALUES (?,?,?,? );";
 const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + ", `params` = ? WHERE `id` = ? limit 1;";
-const sqlOrderCancel = "UPDATE `orders` SET `state` = " + orderStateCanceled + ", `params` = ? WHERE `id` = ? limit 1;";
+const sqlOrderCancelUser = "UPDATE `orders` SET `state` = " + orderStateCanceledUser + ", `params` = ? WHERE `id` = ? limit 1;";
+const sqlOrderCancelTaxi = "UPDATE `orders` SET `state` = " + orderStateCanceledTaxi + ", `params` = ? WHERE `id` = ? limit 1;";
 const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + ", `params` = ? WHERE `id` = ? limit 1;";
 const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + ", `params` = ? WHERE `id` = ? limit 1;";
-
 const sqlOrderCheck = "SELECT `state`, `params` FROM `orders` WHERE `id`=?"
 
 
@@ -227,12 +228,13 @@ class Order
     cancelUser()
     {
         debug( "Order canceled" )
-        this.params.state = orderStateCanceled;
+        this.params.state = orderStateCanceledUser;
 
         this.clearTimers()
 
         const paramsStr = JSON.stringify(this.params)
-        db.c.query( sqlOrderCancel, [paramsStr, this.params.id] ,( err, result, fields ) => {
+        db.c.query( sqlOrderCancelUser
+        , [paramsStr, this.params.id] ,( err, result, fields ) => {
             if( err ) debug( err );
         } );
 
@@ -255,9 +257,10 @@ class Order
     cancelDriver( aDriver ) {
         if( this.params.state === orderStateTaken && this.driver === aDriver ) {
             debug(`Canceling order ${this.params.id}`)
-            this.params.state = orderStateCanceled;
+            this.params.state = orderStateCanceledUser;
             const paramsStr = JSON.stringify(this.params)
-            db.c.query( sqlOrderCancel, [ paramsStr, this.params.id ] ,( err, result, fields ) => {
+            db.c.query( sqlOrderCancelUser
+            , [ paramsStr, this.params.id ] ,( err, result, fields ) => {
                 if( err ) debug( err );
             } );
 
@@ -403,7 +406,6 @@ function checkOrder( req, res )
 
     if( db.orders.has( theId ) )
     {
-        debug("Sending state of order")
         const theOrd = db.orders.get( theId )
         const obj = { "id" : theOrd.params.id,  "data" : theOrd.params };
         res.json( obj );
@@ -415,7 +417,6 @@ function checkOrder( req, res )
                 debug( err );
                 res.sendStatus(400);
             } else if ( result.length > 0 ) {
-                debug("Sending state of order from DB")
                 res.setHeader('Content-Type', 'application/json');
                 res.send(`{"id": ${theId}, "data": ${result[0].params}}`);
             } else {

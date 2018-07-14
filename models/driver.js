@@ -144,7 +144,7 @@ class Driver extends EventEmitter {
             return;
         }
 
-        this.orders.set( order.params.id,theOrder );
+        this.orders.set( order.params.id,order );
 
         // create timeout and add it to order timeout map
         this.orderTimeouts.set(
@@ -153,18 +153,22 @@ class Driver extends EventEmitter {
         )
 
         // send it to the driver
+        debug( "INFO: Sending order " + order.params.id + " to driver " + this.id )
         const toSend = { "id" : this.id, "op" : "order", "data" : order.params };
         this.send( JSON.stringify(toSend));
     }
 
 
     /**
+     * Removes order from this driver. It clears the order from internal order map and also deletes
+     * timeout from timeouts map so we dont leak resources
      *
-     * @param {Order} theOrder
+     * @param {Order} theOrder The order to delete from driver
      */
     removeOrder( theOrder ) {
         if( this.orders.has( theOrder.params.id ) ) {
             this.orders.delete( theOrder.params.id )
+            this.orderTimeouts.delete( theOrder.params.id )
             debug("Succesfully deleted order " + theOrder.params.id + " from driver " + this.id )
         } else {
             debug("Failed to delete order " + theOrder.params.id + " from driver " + this.id )
@@ -188,78 +192,110 @@ class Driver extends EventEmitter {
         });
     }
 
-    // TODO: Error check
+    /**
+     * Take one of the order that this driver was offered
+     *
+     * @param {JSON} msg
+     */
     takeOrder(msg) {
         debug(`Taking order: ${msg.data.id} by driver: ${this.id}`)
 
         if( this.orders.has( msg.data.id ) ) {
             const order = this.orders.get( msg.data.id )
 
-            if( order.accept( this, msg.data ) ) {
-                clearTimeout( this.orderTimeouts.get( msg.data.id ) )
-                this.orderTimeouts.delete( msg.data.id )
+            clearTimeout( this.orderTimeouts.get( msg.data.id ) )
+            this.orderTimeouts.delete( msg.data.id )
 
-                this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : this.order.params}))
+            if( order.accept( this, msg.data ) ) {
+                this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : order.params } ) )
             } else {
-                // failed to accept order
-                // send operation unsuccessfull to driver
+                this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data, "cause" : "err" } ) )
             }
 
         } else {
-            // send operation unsuccessfull to driver
+            this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data, "cause" : "err" } ) )
         }
     }
 
-    // TODO: Multiple orders
-    declineOrder( msg ){
+    /**
+     * Decline the order in msg by this driver. The order will remove this driver from its list.
+     * The order is then removed with the order's timeout
+     *
+     * @param {JSON} msg The order to remove
+     */
+    declineOrder( msg ) {
         debug(`Declining order: ${msg.data.id} by driver: ${this.id}`)
 
-        if( this.order && this.order.params.id === msg.data.id ) {
-            this.order.cancelDriver(this);
-            this.removeOrder( this.order )
-            return
-        }
-        // else
+        const order = this.orders.get( msg.data.id )
+
+        if( order ) {
+            order.cancelDriver( this )
+            this.removeOrder( order )
+        } // else {
         // send operation unsuccessfull to driver
+        // }
     }
 
-    // TODO: Multiple orders
+    /**
+     * Mark the order in msg as finished and remove the order from this driver.
+     * The driver will then move to another order that is in his list.
+     * To prevent desync the driver should get all his order from server in
+     * getAll method
+     *
+     * @param {JSON} msg
+     */
     finishOrder(msg){
         debug(`Finishing order: ${msg.data.id} by driver: ${this.id}`)
 
-        if( this.order && this.order.params.id === msg.data.id ) {
-            this.order.done(this, msg.data);
-            this.removeOrder( this.order )
-            return
-        }
-        // else
+        const order = this.orders.get( msg.data.id )
+
+        if( order ) {
+            order.done( this, msg.data )
+            this.removeOrder( order )
+        } // else {
         // send operation unsuccessfull to driver
+        // }
     }
 
-    // TODO: Multiple orders
+    /**
+     * Report this order and its customer as not good, the customer will be written
+     * to blacklist database and he/she will be filtered from now on.
+     * This function first report order and then removes the order from this driver
+     * so driver can processed and handle another order
+     *
+     * @param {JSON} msg
+     */
     reportOrder(msg) {
         debug(`Reporting order: ${msg.data.id} by driver: ${this.id}`)
 
-        if( this.order && this.order.params.id === msg.data.id ) {
-            this.order.report(this, msg.comment);
-            this.orderCanceled( this.order )
-            return
+        const order = this.orders.get( msg.data.id )
+
+        if( order ) {
+            order.report(this, msg.comment);
+            this.orderCanceled( order )
         }
         else {
             debug( "Trying to report order that is not handled by this driver: " + this.id )
         }
     }
 
-    // TODO: Multiple orders
+    /**
+     * Send this the order in msg to everybody else because the current driver was
+     * interupted somehow and he/she does not want to handle this order any more.
+     * The order is first removed from this driver and then send to ALL drivers in the
+     * system
+     *
+     * @param {JSON} msg
+     */
     forwardOrder(msg) {
         debug("Forwarding order to someone else")
         debug("order: " + msg.data)
 
-        if( this.order && this.order.params.id === msg.data.id ) {
-            let order = this.order
+        const order = this.orders.get( msg.data.id )
+
+        if( order ) {
             this.orderCanceled( msg.data )
             order.onFwd(this, msg.comment);
-            return
         }
         else {
             debug( "Trying to forward order that is not handled by this driver: " + this.id )
@@ -277,9 +313,10 @@ class Driver extends EventEmitter {
     orderCanceled( anOrder )
     {
         this.send(JSON.stringify( {"op" : "order", "id" : this.id, "data" : anOrder.params}))
-        this.removeOrder( this.order )
+        this.removeOrder( anOrder )
     }
 
+    // ---------------------- networking part --------------------------
     /**
      * Handle incomming msg from either websocket or http
      * Calls apropriete method on driver
@@ -332,7 +369,7 @@ class Driver extends EventEmitter {
     setConnection(aConn) {
         // TODO:    Optimize, check if driver has a connection and if yes then
         //          dont write the same twice to DB
-        db.c.query(sqlConnection, [ ( aConn == null ? false : true ), this.id], (err, result, fields) => {
+        db.c.query(sqlConnection, [ ( aConn == null ? false : true ), this.id], (err) => {
             if (err) { debug(err); return;}
         })
 
@@ -432,18 +469,6 @@ const getTaxi = (id) => {
             resolve(result);
         });
     });
-}
-
-const performLogin = (name, password) => {
-    return new Promise((resolve, reject) => {
-        db.c.query('select id from taxi_drivers where name = ? and password = ? limit 1', [name, password], (err, result, fields) => {
-            if (err) {
-                reject(err);
-            }
-
-            resolve(result);
-        })
-    })
 }
 
 function login(id) {

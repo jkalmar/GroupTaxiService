@@ -64,15 +64,10 @@ function handleMessageFn(message) {
     debug(`WS message ${message} from user ${this.driver.id}`);
 
     const msg = JSON.parse(message);
-    let theDriver = drivers.getDriver(this.driver.id)
+    const theDriver = drivers.getDriver(this.driver.id)
 
-    if (!theDriver) {
-        debug("No driver found!!!")
-        return;
-    }
-
-
-    theDriver.handleMsg(msg);
+    if ( theDriver )    theDriver.handleMsg(msg);
+    else                debug("ERROR: No driver with ID: " + this.driver.id + " found!!!")
 }
 
 function handleCloseFn(code, reason) {
