@@ -12,7 +12,8 @@ const orderStateTimeout = 6;
 const orderStateDone = 7;
 
 
-const sqlOrderCreate = "INSERT INTO `orders` (`serial_num_device`,`place_from`, `place_to`, `params` ) VALUES (?,?,?,? );";
+const sqlOrderCreate = "INSERT INTO `orders` (`id`) VALUES (NULL);";
+const sqlOrderSetParams = "UPDATE `orders` SET `params` = ? WHERE `id`=? limit 1;";
 const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + ", `params` = ? WHERE `id` = ? limit 1;";
 const sqlOrderCancelUser = "UPDATE `orders` SET `state` = " + orderStateCanceledUser + ", `params` = ? WHERE `id` = ? limit 1;";
 const sqlOrderCancelTaxi = "UPDATE `orders` SET `state` = " + orderStateCanceledTaxi + ", `params` = ? WHERE `id` = ? limit 1;";
@@ -21,6 +22,11 @@ const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + ", `par
 const sqlOrderCheck = "SELECT `state`, `params` FROM `orders` WHERE `id`=?"
 
 
+const sqlInsertActive = "INSERT INTO `active_orders` (`order_id`, `driver_id`, `expriry`) VALUES ( ?, ?, current_timestamp() )"
+const sqlSelectActive = "SELECT `active_orders`.`id`, `order_id`, `driver_id`, `orders`.`params` FROM `active_orders` WHERE `driver_id`=? INNER JOIN orders ON order_id=orders.id"
+const sqlDeleteActive = "DELETE FROM `active_orders` WHERE order_id=? AND driver_id=?"
+
+const takenOrders = new Set()
 
 /**
  * @class
@@ -110,43 +116,6 @@ class Order
         this.switchTimeout = null
     }
 
-    /* Old sequential switching, this function switched drivers one after another until timeout
-    onSwitchSeq()
-    {
-        if( ! this.accepted )
-        {
-            // remove from old driver
-            if( this.driver ) this.driver.removeOrder( this );
-
-            var { value : val, done : tf } = this.driverIterator.next();
-
-            while( !tf ) {
-                const theDriver = val[1];
-
-                if(theDriver.order === null)
-                {
-                    this.driverId = val[0];
-                    this.driver = theDriver;
-
-                    this.driver.makeOrder( this );
-
-                    clearTimeout( this.switchTimeout );
-                    this.switchTimeout = setTimeout( this.onSwitch.bind( this ), OrderSwitchTime );
-                    break;
-                }
-
-                var { value : val, done : tf } = this.driverIterator.next();
-            }
-
-            if( tf ) {
-                this.driverId = null;
-                this.driver = null;
-                return;
-            }
-        }
-    }
-    */
-
     /**
      * Takes the order by a one driver
      * This function should check if order is not taken by some other driver
@@ -156,6 +125,7 @@ class Order
      * @param {order} newParams
      * @param {Driver} aDriver
      */
+    // TODO: move to driver
     accept( aDriver, newParams )
     {
         const paramStr = JSON.stringify(newParams);
@@ -169,9 +139,7 @@ class Order
 
             this.clearTimers()
 
-            db.c.query( sqlOrderTake, [ this.driver.id, paramStr, this.params.id ] ,( err, result, fields ) => {
-                if( err ) debug( err );
-            } );
+
 
             // move to driver class
             debug(`Order: ${this.params.id} accepted`)
@@ -192,6 +160,7 @@ class Order
      *
      * @param {Driver} aDriver
      */
+    // TODO: move to driver
     deny( aDriver )
     {
         debug(`Denying order ${this.params.id}`)
@@ -254,6 +223,8 @@ class Order
      *
      * @param {Driver} aDriver
      */
+
+    // TODO: move to driver
     cancelDriver( aDriver ) {
         if( this.params.state === orderStateTaken && this.driver === aDriver ) {
             debug(`Canceling order ${this.params.id}`)
@@ -279,6 +250,7 @@ class Order
      * @param {Order} newParams
      * @returns {Boolean} true if order was successfully finished false otherwise
      */
+    // TODO: Move to driver
     done(aDriver, newParams)
     {
         // only alredy taken orders can be finished
@@ -316,6 +288,7 @@ class Order
      * @param {Driver} aDriver
      * @param {String} aComment
      */
+    // TODO: move to driver
     report(aDriver, aComment) {
         debug(`Order: ${this.params.id} reported by driver: ${aDriver.id}`);
         debug(`Ids: sim: ${this.params.simSerial} device: ${this.params.deviceSerial}`);
@@ -346,6 +319,25 @@ class Order
     }
 }
 
+function orderCreated( aParam ) {
+    const point = { "lat" : aParam.from.lat, "lng" : aParam.from.lng }
+    debug("Order created with id: " + aParam.id)
+
+    db.findNearestDrivers( point ).then( ( drivers ) => {
+        for( const driver of drivers ) {
+            db.c.query( sqlInsertActive, [ aParam.id, driver.id ], ( err, row ) => {
+                if( err ) {
+                    debug(err);
+                    return;
+                }
+                driver.makeOrder( row.insertId, aParam )
+            } )
+        }
+    } ).catch( ( err ) => {
+        console.log( err )
+    } )
+}
+
 /**
  *
  * @param {express.res} res
@@ -353,37 +345,37 @@ class Order
  */
 function createNewOrder( res, aParam )
 {
-    const paramsStr = JSON.stringify(aParam);
     debug( "Creating new order" );
-    debug( `params: ${paramsStr}` );
 
-    db.c.query( sqlOrderCreate, [0, "from", "to", paramsStr], ( err, result, fields ) => {
+    db.c.query( sqlOrderCreate, [], ( err, result, fields ) => {
         if( err ) {
+            debug(err)
             res.sendStatus( 500 );
             return
         }
 
-        blacklist.checkOrder( aParam.simSerial, aParam.deviceSerial ).then( value => {
-            // create new order and set id
-            aParam.id = Number(result.insertId);
+        aParam.id = Number(result.insertId);
 
-            if( value.length > 0 )  aParam.isBlacklisted = true;
-            else                    aParam.isBlacklisted = false;
+        const paramsStr = JSON.stringify(aParam);
 
+        db.c.query( sqlOrderSetParams, [ paramsStr, aParam.id ], (err) =>{
+            blacklist.checkOrder( aParam.simSerial, aParam.deviceSerial ).then( value => {
+                // create new order and set id
 
-            let theOrder = new Order( aParam );
-            db.orders.set( theOrder.params.id, theOrder )
+                if( value.length > 0 )  aParam.isBlacklisted = true;
+                else                    aParam.isBlacklisted = false;
 
-            // Call first state in order
-            theOrder.onCreate();
+                // Call first state in order
+                orderCreated( aParam )
 
-            res.json( { "id" : theOrder.params.id, "data" : theOrder.params } );
-        } ).catch( error => {
-            debug(error)
-            res.sendStatus( 500 )
+                debug( { "id" : aParam.id, "data" : aParam } )
+
+                res.json( { "id" : aParam.id, "data" : aParam } );
+            } ).catch( error => {
+                debug(error)
+                res.sendStatus( 500 )
+            } )
         } )
-
-
     } )
 }
 
@@ -396,34 +388,27 @@ function checkOrder( req, res )
 {
     let theId = req.params.id;
 
-    if( theId === undefined )
-    {
+    if( theId === undefined ) {
         res.sendStatus( 400 );
         return;
     }
 
-    theId = Number(theId)
+    //theId = Number(theId)
 
-    if( db.orders.has( theId ) )
-    {
-        const theOrd = db.orders.get( theId )
-        const obj = { "id" : theOrd.params.id,  "data" : theOrd.params };
-        res.json( obj );
-    }
-    else
-    {
-        db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
-            if( err ) {
-                debug( err );
-                res.sendStatus(400);
-            } else if ( result.length > 0 ) {
-                res.setHeader('Content-Type', 'application/json');
-                res.send(`{"id": ${theId}, "data": ${result[0].params}}`);
-            } else {
-                res.sendStatus(400);
-            }
-        } );
-    }
+    debug(theId)
+
+    db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
+        if( err ) {
+            debug( err );
+            res.sendStatus(400);
+        } else if ( result.length > 0 ) {
+            res.setHeader('Content-Type', 'application/json');
+            res.send(`{"id": ${theId}, "data": ${result[0].params}}`);
+        } else {
+            debug("BAD")
+            res.sendStatus(400);
+        }
+    } );
 }
 
 /**
@@ -438,28 +423,114 @@ function cancelOrder( req, res )
 {
     let theId = req.params.id;
 
-    if( theId )
-    {
-        theId = Number(theId)
-        const theOrder = db.orders.get( theId );
-        if( theOrder )
-        {
-            theOrder.cancelUser()
-            const obj = { "id" : theOrder.params.id, "state" : theOrder.params.state, "data" : theOrder.params };
-            res.json( obj )
-        }
-        else{
-            res.sendStatus(409)
-        }
+    if( theId === undefined ) {
+        res.sendStatus( 400 );
+        return;
     }
-    else
-    {
-        res.sendStatus(400)
+
+    debug("Canceling order with id: " + theId)
+
+    db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
+        if( err ) {
+            debug( err );
+            res.sendStatus(400);
+        } else if ( result.length > 0 ) {
+            order = JSON.parse(result[0].params)
+
+            order.state = orderStateCanceledUser
+
+            debug(order)
+
+            db.c.query( sqlOrderCancelUser, [JSON.stringify(order), theId] ,( err, result, fields ) => {
+                if( err ) {
+                    debug( err );
+                    return
+                }
+
+                checkOrder( req, res )
+                // notify driver
+            } );
+        } else {
+            res.sendStatus(400);
+        }
+    } );
+}
+
+function switchOrder( orderId ) {
+
+}
+
+function timeoutOrder( orderId ) {
+
+}
+
+function forwardOrder( orderId, driverId ) {
+
+}
+
+function takeOrder( orderId, driverId, newParams ) {
+    takenOrders.add(orderId)
+
+    db.c.query( sqlOrderTake, [ driverId, newParams, orderId ] ,( err ) => {
+        if( err ) debug( err );
+    } );
+}
+
+function isOrderTaken( orderId ) {
+    return takenOrders.has(orderId)
+}
+
+function deny( orderId, driverId ) {
+    db.c.query( sqlDeleteActive, [ orderId, driverId ], (err) => {
+        if(err) debug(err)
+    } )
+}
+
+function cancelOrderDriver( orderId, driverId, newParams ) {
+    takenOrders.delete(orderId)
+
+    db.c.query( sqlOrderCancelTaxi, [driverId, newParams, orderId], (err) => {
+        if(err) debug(err)
+        else deny(orderId, driverId)
+    } )
+}
+
+function finishOrder( orderId, driverId, newParams ) {
+    takenOrders.delete(orderId)
+
+    debug(`Order: ${orderId} has been finished by driver ${driverId}`)
+
+    db.c.query( sqlOrderDone, [newParams, orderId], (err) => {
+        if(err) debug(err)
+        else deny(orderId, driverId)
+    } )
+}
+
+function reportOrder( orderId, driverId, comment, order ) {
+    debug(`Order: ${orderId} has been reported by driver ${driverId} with comment: ${comment}`)
+
+    const reportData = {
+        simSerial : order.simSerial,
+        deviceSerial : order.deviceSerial,
+        driver : driverId,
+        comment : comment
     }
+
+    blacklist.insertNew( reportData );
+    deny(orderId, driverId)
 }
 
 module.exports = {
     createNewOrder,
     checkOrder,
     cancelOrder,
+    switchOrder,
+    timeoutOrder,
+    forwardOrder,
+    takeOrder,
+    deny,
+    cancelOrderDriver,
+    finishOrder,
+    reportOrder,
+    isOrderTaken
 }

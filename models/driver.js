@@ -2,6 +2,7 @@
 const EventEmitter = require('events');
 
 const db = require('./database');
+const orders = require("./orders");
 const debug = require("debug")("backend:drivers")
 const constants = require("./../config/constants")
 
@@ -28,10 +29,6 @@ class Driver extends EventEmitter {
         this.id = id;
         this.setConnection(ws)
         this.isAlive = false;
-        this.timeout = null;
-        this.order = null;
-        this.orders = new Map();
-        this.orderTimeouts = new Map();
         this.username = "NaN"
     }
 
@@ -126,10 +123,6 @@ class Driver extends EventEmitter {
         this.send(JSON.stringify(toSend))
     }
 
-    onOrderTimeout( theOrder ) {
-        this.removeOrder( theOrder )
-    }
-
     /**
      * Makes order to this driver
      * Called from order module, driver will then listen to switch callback to stop accepting this
@@ -138,41 +131,13 @@ class Driver extends EventEmitter {
      *
      * @param {Order} order
      */
-    makeOrder( order ) {
-        if( this.orders.has( order.params.id ) ) {
-            debug(`Driver: ${this.id} already has an order: ${order.params.id}`)
-            return;
-        }
-
-        this.orders.set( order.params.id,order );
-
-        // create timeout and add it to order timeout map
-        this.orderTimeouts.set(
-            order.params.id,
-            setTimeout( this.onOrderTimeout.bind( this, order ), constants.OrderSwitchTime )
-        )
-
+    makeOrder( transactionId, order ) {
         // send it to the driver
-        debug( "INFO: Sending order " + order.params.id + " to driver " + this.id )
-        const toSend = { "id" : this.id, "op" : "order", "data" : order.params };
+
+        debug( "INFO: Sending order " + order.id + " to driver " + this.id )
+        const toSend = { "id" : this.id, "op" : "order", "data" : order };
+
         this.send( JSON.stringify(toSend));
-    }
-
-
-    /**
-     * Removes order from this driver. It clears the order from internal order map and also deletes
-     * timeout from timeouts map so we dont leak resources
-     *
-     * @param {Order} theOrder The order to delete from driver
-     */
-    removeOrder( theOrder ) {
-        if( this.orders.has( theOrder.params.id ) ) {
-            this.orders.delete( theOrder.params.id )
-            this.orderTimeouts.delete( theOrder.params.id )
-            debug("Succesfully deleted order " + theOrder.params.id + " from driver " + this.id )
-        } else {
-            debug("Failed to delete order " + theOrder.params.id + " from driver " + this.id )
-        }
     }
 
     /**
@@ -200,21 +165,15 @@ class Driver extends EventEmitter {
     takeOrder(msg) {
         debug(`Taking order: ${msg.data.id} by driver: ${this.id}`)
 
-        if( this.orders.has( msg.data.id ) ) {
-            const order = this.orders.get( msg.data.id )
+        const orderId = Number(msg.data.id)
 
-            clearTimeout( this.orderTimeouts.get( msg.data.id ) )
-            this.orderTimeouts.delete( msg.data.id )
-
-            if( order.accept( this, msg.data ) ) {
-                this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : order.params } ) )
-            } else {
-                this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data, "cause" : "err" } ) )
-            }
-
-        } else {
-            this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data, "cause" : "err" } ) )
+        if( orders.isOrderTaken( orderId ) ) {
+            this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data, "cause" : "taken" } ) )
+            return
         }
+
+        orders.takeOrder( orderId )
+        this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : order.params } ) )
     }
 
     /**
@@ -226,14 +185,17 @@ class Driver extends EventEmitter {
     declineOrder( msg ) {
         debug(`Declining order: ${msg.data.id} by driver: ${this.id}`)
 
-        const order = this.orders.get( msg.data.id )
+        const orderId = Number(msg.data.id)
 
-        if( order ) {
-            order.cancelDriver( this )
-            this.removeOrder( order )
-        } // else {
-        // send operation unsuccessfull to driver
-        // }
+        orders.deny( orderId, this.id )
+    }
+
+    cancelOrder( msg ) {
+        debug(`Canceling order ${msg.data.id} by driver: ${this.id}`)
+
+        const orderId = Number(msg.data.id)
+
+        orders.cancelOrderDriver( orderId, this.id, msg.data )
     }
 
     /**
@@ -247,14 +209,7 @@ class Driver extends EventEmitter {
     finishOrder(msg){
         debug(`Finishing order: ${msg.data.id} by driver: ${this.id}`)
 
-        const order = this.orders.get( msg.data.id )
-
-        if( order ) {
-            order.done( this, msg.data )
-            this.removeOrder( order )
-        } // else {
-        // send operation unsuccessfull to driver
-        // }
+        orders.finishOrder(msg.data.id, this.id, msg.data)
     }
 
     /**
@@ -268,15 +223,7 @@ class Driver extends EventEmitter {
     reportOrder(msg) {
         debug(`Reporting order: ${msg.data.id} by driver: ${this.id}`)
 
-        const order = this.orders.get( msg.data.id )
-
-        if( order ) {
-            order.report(this, msg.comment);
-            this.orderCanceled( order )
-        }
-        else {
-            debug( "Trying to report order that is not handled by this driver: " + this.id )
-        }
+        orders.reportOrder( msg.data.id, this.id, msg.comment, msg.data )
     }
 
     /**
@@ -288,19 +235,8 @@ class Driver extends EventEmitter {
      * @param {JSON} msg
      */
     forwardOrder(msg) {
-        debug("Forwarding order to someone else")
+        debug("Forwarding order to someone else TODO TODO TODO")
         debug("order: " + msg.data)
-
-        const order = this.orders.get( msg.data.id )
-
-        if( order ) {
-            this.orderCanceled( msg.data )
-            order.onFwd(this, msg.comment);
-        }
-        else {
-            debug( "Trying to forward order that is not handled by this driver: " + this.id )
-        }
-
     }
 
     // -------------------- callbacks from Order -----------------------
@@ -383,6 +319,7 @@ var methodMapping = {
     "getAll" : Driver.prototype.getAll,
     "take" : Driver.prototype.takeOrder,
     "decline" : Driver.prototype.declineOrder,
+    "cancel" : Driver.prototype.cancelOrder,
     "finish" : Driver.prototype.finishOrder,
     "report" : Driver.prototype.reportOrder,
     "fwd" : Driver.prototype.forwardOrder

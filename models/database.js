@@ -11,15 +11,6 @@ const sqlFindNearDrivers = "SELECT id, (6371 * acos(cos(radians(?)) * " +
                            "sin(radians(latitude ))) ) AS distance " +
                            "FROM taxi_drivers WHERE logged = 1 AND latitude IS NOT NULL ORDER BY distance LIMIT 0, 3;"
 
-/**
- * @typedef {module:./orders:Order} O
- */
-
-/**
- * @type {Map<Number, O>}
- */
-var orders = new Map(); // Current orders in the
-
 debug("Preping DB " + new Date().toISOString() )
 
 /**
@@ -69,6 +60,5 @@ connection.connect(function(err) {
 module.exports = {
   c : connection,
   drivers,
-  orders,
   findNearestDrivers
 }
