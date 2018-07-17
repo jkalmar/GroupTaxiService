@@ -386,16 +386,12 @@ function createNewOrder( res, aParam )
  */
 function checkOrder( req, res )
 {
-    let theId = req.params.id;
+    const theId = req.params.id;
 
     if( theId === undefined ) {
         res.sendStatus( 400 );
         return;
     }
-
-    //theId = Number(theId)
-
-    debug(theId)
 
     db.c.query( sqlOrderCheck, [ theId ] ,( err, result, fields ) => {
         if( err ) {
@@ -435,11 +431,10 @@ function cancelOrder( req, res )
             debug( err );
             res.sendStatus(400);
         } else if ( result.length > 0 ) {
+            debug(result[0])
+
             order = JSON.parse(result[0].params)
-
             order.state = orderStateCanceledUser
-
-            debug(order)
 
             db.c.query( sqlOrderCancelUser, [JSON.stringify(order), theId] ,( err, result, fields ) => {
                 if( err ) {
@@ -469,11 +464,20 @@ function forwardOrder( orderId, driverId ) {
 }
 
 function takeOrder( orderId, driverId, newParams ) {
+    // Check if someone took the order
+    // Because taking order is divided into multiple sqls and those are not atomic
+    // we need to have some atomic way of checking the wheter the order is taken or
+    // not
+    if( isOrderTaken(orderId) ) return false
+
     takenOrders.add(orderId)
 
-    db.c.query( sqlOrderTake, [ driverId, newParams, orderId ] ,( err ) => {
+    // There is no need to wait for this query
+    db.c.query( sqlOrderTake, [ driverId, JSON.stringify(newParams), orderId ] ,( err ) => {
         if( err ) debug( err );
     } );
+
+    return true;
 }
 
 function isOrderTaken( orderId ) {
@@ -489,7 +493,7 @@ function deny( orderId, driverId ) {
 function cancelOrderDriver( orderId, driverId, newParams ) {
     takenOrders.delete(orderId)
 
-    db.c.query( sqlOrderCancelTaxi, [driverId, newParams, orderId], (err) => {
+    db.c.query( sqlOrderCancelTaxi, [driverId, JSON.stringify(newParams), orderId], (err) => {
         if(err) debug(err)
         else deny(orderId, driverId)
     } )
@@ -500,7 +504,7 @@ function finishOrder( orderId, driverId, newParams ) {
 
     debug(`Order: ${orderId} has been finished by driver ${driverId}`)
 
-    db.c.query( sqlOrderDone, [newParams, orderId], (err) => {
+    db.c.query( sqlOrderDone, [JSON.stringify(newParams), orderId], (err) => {
         if(err) debug(err)
         else deny(orderId, driverId)
     } )
@@ -508,6 +512,8 @@ function finishOrder( orderId, driverId, newParams ) {
 
 function reportOrder( orderId, driverId, comment, order ) {
     debug(`Order: ${orderId} has been reported by driver ${driverId} with comment: ${comment}`)
+
+    takenOrders.delete(orderId)
 
     const reportData = {
         simSerial : order.simSerial,

@@ -172,8 +172,8 @@ class Driver extends EventEmitter {
             return
         }
 
-        orders.takeOrder( orderId )
-        this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : order.params } ) )
+        orders.takeOrder( orderId, this.id, msg.data )
+        this.send( JSON.stringify( { "op" : "order", "id" : this.id, "data" : msg.data } ) )
     }
 
     /**
