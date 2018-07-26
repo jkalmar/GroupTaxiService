@@ -195,7 +195,7 @@ class Driver extends EventEmitter {
 
         const orderId = Number(msg.data.id)
 
-        orders.cancelOrderDriver( orderId, this.id, msg.data )
+        orders.cancelOrderDriver( orderId, this.id )
     }
 
     /**

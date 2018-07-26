@@ -13,8 +13,7 @@ const orderStateDone = 7;
 
 
 const sqlOrderCreate = "INSERT INTO `orders` (??) VALUES (?);";
-const sqlOrderSetParams = "UPDATE `orders` SET `params` = ? WHERE `id`=? limit 1;";
-const sqlOrderTake = "UPDATE `orders` SET `id_DRIVER` = ?, `state` = " + orderStateTaken + " WHERE `id` = ? limit 1;";
+const sqlOrderTake = "UPDATE `orders` SET `taxiId` = ?, `state` = " + orderStateTaken + " WHERE `id` = ? limit 1;";
 const sqlOrderCancelUser = "UPDATE `orders` SET `state` = " + orderStateCanceledUser + " WHERE `id` = ? limit 1;";
 const sqlOrderCancelTaxi = "UPDATE `orders` SET `state` = " + orderStateCanceledTaxi + " WHERE `id` = ? limit 1;";
 const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
@@ -485,7 +484,7 @@ function takeOrder( orderId, driverId, newParams ) {
     takenOrders.add(orderId)
 
     // There is no need to wait for this query
-    db.c.query( sqlOrderTake, [ driverId, JSON.stringify(newParams), orderId ] ,( err ) => {
+    db.c.query( sqlOrderTake, [ driverId, orderId ] ,( err ) => {
         if( err ) debug( err );
     } );
 
@@ -502,7 +501,7 @@ function deny( orderId, driverId ) {
     } )
 }
 
-function cancelOrderDriver( orderId, driverId, newParams ) {
+function cancelOrderDriver( orderId, driverId ) {
     takenOrders.delete(orderId)
 
     db.c.query( sqlOrderCancelTaxi, [orderId], (err) => {
