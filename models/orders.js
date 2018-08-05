@@ -13,7 +13,7 @@ const orderStateDone = 7;
 
 
 const sqlOrderCreate = "INSERT INTO `orders` (??) VALUES (?);";
-const sqlOrderTake = "UPDATE `orders` SET `taxiId` = ?, `state` = " + orderStateTaken + " WHERE `id` = ? limit 1;";
+const sqlOrderTake = "UPDATE `orders` SET `taxiId` = ?, `state` = " + orderStateTaken + ", `time` = ? WHERE `id` = ? limit 1;";
 const sqlOrderCancelUser = "UPDATE `orders` SET `state` = " + orderStateCanceledUser + " WHERE `id` = ? limit 1;";
 const sqlOrderCancelTaxi = "UPDATE `orders` SET `state` = " + orderStateCanceledTaxi + " WHERE `id` = ? limit 1;";
 const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
@@ -484,7 +484,7 @@ function takeOrder( orderId, driverId, newParams ) {
     takenOrders.add(orderId)
 
     // There is no need to wait for this query
-    db.c.query( sqlOrderTake, [ driverId, orderId ] ,( err ) => {
+    db.c.query( sqlOrderTake, [ driverId, newParams.time, orderId ] ,( err ) => {
         if( err ) debug( err );
     } );
 
