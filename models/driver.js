@@ -317,6 +317,7 @@ var methodMapping = {
     "update" : Driver.prototype.updateLoc,
     "panic" : Driver.prototype.panic,
     "getAll" : Driver.prototype.getAll,
+    // has to be confirmed
     "take" : Driver.prototype.takeOrder,
     "decline" : Driver.prototype.declineOrder,
     "cancel" : Driver.prototype.cancelOrder,

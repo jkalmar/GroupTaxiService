@@ -12,8 +12,10 @@ const trouble = require('../models/trouble');
 const orders = require( "../models/orders" )
 const blacklist = require( "../models/blacklist" )
 const users = require("../controllers/users")
+const ordersApi = require( "./orders" )
 
 users( router )
+ordersApi( router )
 
 router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
