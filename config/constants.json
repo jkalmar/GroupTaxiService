@@ -2,6 +2,8 @@
     "waitForDriverReConnectionTime" : 120000,
     "OrderTimeout" : 60000,
     "OrderSwitchTime" : 12000,
-    "OrderDoneTimeout" : 30000
+    "OrderDoneTimeout" : 30000,
+    "brokenConnectionTimer": 25000,
+    "syncTime": 60000
 }
 

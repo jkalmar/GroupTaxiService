@@ -11,22 +11,24 @@ const orderStateCanceledTaxi = 5;
 const orderStateTimeout = 6;
 const orderStateDone = 7;
 
+const sqlOrderCreate = "INSERT INTO `order` (??) VALUES (?);";
+const sqlOrderTake = "UPDATE `order` SET `taxiId` = ?, `state` = " + orderStateTaken + ", `time` = ? WHERE `id` = ? limit 1;";
+const sqlOrderCancelUser = "UPDATE `order` SET `state` = " + orderStateCanceledUser + " WHERE `id` = ? limit 1;";
+const sqlOrderCancelTaxi = "UPDATE `order` SET `state` = " + orderStateCanceledTaxi + " WHERE `id` = ? limit 1;";
+const sqlOrderTimeout = "UPDATE `order` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
+const sqlOrderDone = "UPDATE `order` SET `state` = " + orderStateDone + " WHERE `id` = ? limit 1;";
+const sqlOrderCheck = "SELECT * FROM `order` WHERE `id`=?"
 
-const sqlOrderCreate = "INSERT INTO `orders` (??) VALUES (?);";
-const sqlOrderTake = "UPDATE `orders` SET `taxiId` = ?, `state` = " + orderStateTaken + ", `time` = ? WHERE `id` = ? limit 1;";
-const sqlOrderCancelUser = "UPDATE `orders` SET `state` = " + orderStateCanceledUser + " WHERE `id` = ? limit 1;";
-const sqlOrderCancelTaxi = "UPDATE `orders` SET `state` = " + orderStateCanceledTaxi + " WHERE `id` = ? limit 1;";
-const sqlOrderTimeout = "UPDATE `orders` SET `state` = " + orderStateTimeout + " WHERE `id` = ? limit 1;";
-const sqlOrderDone = "UPDATE `orders` SET `state` = " + orderStateDone + " WHERE `id` = ? limit 1;";
-const sqlOrderCheck = "SELECT * FROM `orders` WHERE `id`=?"
-
-
-const sqlInsertActive = "INSERT INTO `active_orders` (`order_id`, `driver_id`, `expriry`) VALUES ( ?, ?, current_timestamp() )"
-const sqlSelectActive = "SELECT `active_orders`.`id`, `order_id`, `driver_id`, `orders`.`params` FROM `active_orders` WHERE `driver_id`=? INNER JOIN orders ON order_id=orders.id"
-const sqlDeleteActive = "DELETE FROM `active_orders` WHERE order_id=? AND driver_id=?"
-const sqlDeleteActiveAll = "DELETE FROM `active_orders` WHERE `order_id`=?"
+const sqlInsertActive = "INSERT INTO `active_order` (`order_id`, `driver_id`, `expriry`) VALUES ( ?, ?, current_timestamp() )"
+const sqlSelectActive = "SELECT `active_order`.`id`, `order_id`, `driver_id`, `orders`.`params` FROM `active_order` WHERE `driver_id`=? INNER JOIN orders ON order_id=orders.id"
+const sqlDeleteActive = "DELETE FROM `active_order` WHERE order_id=? AND driver_id=?"
+const sqlDeleteActiveAll = "DELETE FROM `active_order` WHERE `order_id`=?"
 
 const takenOrders = new Set()
+
+function orderQueryBasicCheck(err, result, fields){
+    if(err) debug(err)
+}
 
 /**
  * @class
@@ -35,10 +37,11 @@ const takenOrders = new Set()
  */
 class Order
 {
-    constructor( params ){
-        this.params = params;   // the order json as recv from network
-        this.driver = null;     // the driver object who accepted this order
-        this.drivers = null;    // the initial drivers who were offered this order
+    constructor( id ){
+        this.id = id;
+        this.state = orderStateNew  // the order is new
+        this.driverId = null;     // the driver object who accepted this order
+        this.driversId = null;    // the initial drivers who were offered this order
         this.timeout = setTimeout( this.onTimeout.bind( this ), cst.OrderTimeout );
         this.switchTimeout = setTimeout( this.onSwitch.bind( this ), cst.OrderSwitchTime )
         this.doneTimeout = 0;
@@ -49,17 +52,13 @@ class Order
         if( this.driver === null )
         {
             debug(`Timeout for order, id: ${this.params.id}`);
-            this.params.state = orderStateTimeout;
-            const paramStr = JSON.stringify(this.params)
-
+            this.state = orderStateTimeout;
             this.clearTimers()
 
             // remove this order from the global list of active orders
             // and mark it as timeout order in DB
-            db.orders.delete( this.params.id )
-            db.c.query( sqlOrderTimeout, [ paramStr,this.params.id ] ,( err, result, fields ) => {
-                if( err ) debug( err );
-            } );
+            db.orders.delete( this.id )
+            db.c.query(sqlOrderTimeout, [ this.id ], orderQueryBasicCheck);
         } else {
             debug( `ERROR: Order ${this.params.id}  has been taken but timeout was not deleted` )
         }
@@ -73,7 +72,6 @@ class Order
      */
     onCreate() {
         const point = { "lat" : this.params.from.lat, "lng" : this.params.from.lng }
-
         debug("Order created with id: " + this.params.id)
 
         db.findNearestDrivers( point ).then( ( drivers ) => {

@@ -13,9 +13,11 @@ const orders = require( "../models/orders" )
 const blacklist = require( "../models/blacklist" )
 const users = require("../controllers/users")
 const ordersApi = require( "./orders" )
+const driverApi = require("./driver")
 
 users( router )
 ordersApi( router )
+driverApi( router )
 
 router.get('/v1', function(req, res, next) {
     views.incView( "index" ).then( value => {
@@ -32,24 +34,6 @@ router.get('/drivers',  function(req, res, next) {
         res.sendStatus( 500 );
     } )
 });
-
-router.get('/users', auth.isLoggedIn, function(req, res, next) {
-    res.render('taxis', { users : data })
-});
-
-/**
- * Updates driver location
- * Location is in lang, long GPS coordinates
- */
-router.post('/driver', auth.isLoggedIn, function( req, res, next ) {
-    console.log( req.user );
-    console.log( req.body );
-    taxi_drivers.updateLocation( req.body.lat, req.body.long, req.user ).then( value => {
-        res.sendStatus( 200 );
-    } ).catch( err => {
-        res.sendStatus( 500 );
-    } )
-} );
 
 /**
  * Send message to user
@@ -230,60 +214,6 @@ router.post("/auth/code", function(req, res, next)
         res.sendStatus(200);
     }, 2000 )
 })
-
-/*
-router.get('/users/:id', function(req, res, next) {
-    console.log( req.params.id );
-
-    let d = getTaxi( req.params.id );
-
-    if( d )
-    {
-        res.render('taxi', { user : d } );
-    }
-    else
-    {
-        res.render( 'taxi', { user : { "id" : "Nan", "name" : "Default", "location" : "Default", "history" : [] } } );
-    }
-});*/
-
-/*
-router.post( '/api/add', function( req, res )
-{
-    data.push( req.body );
-
-    console.log( req.body );
-
-    res.sendStatus( 200 );
-});
-
-router.post( '/api/gps/:id', function( req, res )
-{
-    let driver = getTaxi( req.params.id );
-
-    driver.history.push( req.body.location );
-
-    res.sendStatus( 200 );
-} );
-*/
-
-/*
- *  Perform login with name and password in json
- *  and return id and uuid for the login session
- */
-//router.post( '/login', ( req, res, next ) => {
-//    taxi_drivers.login( req.body.name, req.body.password, req, res );
-//} );
-
-/*
- *  Perform logout of the session ID
- */
-//router.post( '/logout', ( req, res, next ) => {
-//    console.log( req.body );
-//
-//    taxi_drivers.logout( req.body.sessionId, req, res );
-//} );
-
 
 module.exports = ( app ) => {
     app.use( "/", router );

@@ -64,7 +64,6 @@ function handleMessageFn(message) {
     debug(`WS message ${message} from user ${this.driver.id}`);
 
     const msg = JSON.parse(message);
-    const theDriver = drivers.getDriver(this.driver.id)
 
     if ( theDriver )    theDriver.handleMsg(msg);
     else                debug("ERROR: No driver with ID: " + this.driver.id + " found!!!")
