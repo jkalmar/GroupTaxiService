@@ -7,7 +7,7 @@ const auth = require("../controllers/auth")
 
 function createNewOrder(req, res) {}
 
-function getOneOrder(req, res) {
+function checkOrder(req, res) {
     const theId = req.params.id
 
     if (theId === undefined) {
@@ -31,13 +31,13 @@ function getOneOrder(req, res) {
     })
 }
 
-function cancelOrder(req, res) {}
+function deleteOrder(req, res) {}
 
 function handleTakeOrder(req, res) {}
 
 function handleDenyOrder(req, res) {}
 
-function handleCancelDriverOrder(req, res) {}
+function handleCancelOrder(req, res) {}
 
 function handleFwdOrder(req, res) {}
 
@@ -45,20 +45,22 @@ function handleDoneOrder(req, res) {}
 
 function handleReportOrder(req, res) {}
 
-function init(router) {
+function install(router) {
+    debug("Installing")
+    // API for customer
     router.post("/order", createNewOrder)
-    router.get("/order/:id", getOneOrder)
-    router.delete("/order/:id", cancelOrder)
+    router.get("/order/:id", checkOrder)
+    router.delete("/order/:id", deleteOrder)
+
+    // API for drivers
     router.post("/order/:id/take", auth.isLoggedIn, handleTakeOrder)
     router.post("/order/:id/deny", auth.isLoggedIn, handleDenyOrder)
-    router.post(
-        "/order/:id/canceldriver",
-        auth.isLoggedIn,
-        handleCancelDriverOrder
-    )
+    router.post("/order/:id/cancel", auth.isLoggedIn, handleCancelOrder)
     router.post("/order/:id/fwd", auth.isLoggedIn, handleFwdOrder)
     router.post("/order/:id/done", auth.isLoggedIn, handleDoneOrder)
     router.post("/order/:id/report", auth.isLoggedIn, handleReportOrder)
 }
 
-module.exports = init
+module.exports = {
+    install
+}

@@ -25,6 +25,13 @@
             "error",
             "never"
         ],
+        "max-len": ["error", 120, 2, {
+            "ignoreUrls": true,
+            "ignoreComments": false,
+            "ignoreRegExpLiterals": true,
+            "ignoreStrings": false,
+            "ignoreTemplateLiterals": false
+            }],
         "node/exports-style": ["error", "module.exports"],
         "no-console": "off"
     },
